@@ -137,11 +137,7 @@ test("wait timeout is 124 and force resend replaces active turn", async () => {
   const firstPid = await pidFor(home, "slow");
   assert.equal((await runCli(["wait", "slow", "--timeout", "0.01"], { env })).code, 124);
   assert.equal((await runCli(["send", "slow", "--force", "--", "replacement"], { env })).code, 0);
-  const exitTrace = join(sandbox, "wait-exit.jsonl");
-  const done = await runCli(["wait", "slow", "--timeout", "5", "--json"], {
-    env: { ...env, SIDEKICK_TEST_EXIT_TRACE: exitTrace },
-    require: join(root, "test", "fixtures", "exit-trace.cjs"),
-  });
+  const done = await runCli(["wait", "slow", "--timeout", "5", "--json"], { env });
   const run = join(home, "runs", "slow");
   const state = Object.fromEntries(
     await Promise.all(
@@ -152,7 +148,6 @@ test("wait timeout is 124 and force resend replaces active turn", async () => {
         ["firstExit", join(run, "run-1", "exit")],
         ["replacementStatus", join(run, "run-2", "status")],
         ["replacementExit", join(run, "run-2", "exit")],
-        ["exitTrace", exitTrace],
       ].map(async ([key, path]) => [key, (await readFile(path, "utf8").catch(() => "")).trim()]),
     ),
   );
