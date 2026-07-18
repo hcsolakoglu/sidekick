@@ -1,12 +1,13 @@
 import { readdir, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import { getEngine } from "./engines/index.js";
 import { commandOverride } from "./engines/shared.js";
 import type { WorkerAction } from "./engines/types.js";
 import { isProcessAlive, launchWorker, runProcess, stopProcess } from "./process.js";
 import { RunStore, type RunRecord } from "./run-store.js";
+import { engineStatePath } from "./platform-support.js";
+import { CliError } from "../utils/errors.js";
 
 export async function refresh(store: RunStore, record: RunRecord): Promise<RunRecord> {
   if (record.status === "running" && !isProcessAlive(record.pid)) {
@@ -97,7 +98,11 @@ export async function executeWorker(
     }
     return await execute();
   } catch (error) {
-    const code = (error as NodeJS.ErrnoException).code === "ENOENT" ? 127 : 125;
+    const code =
+      (error as NodeJS.ErrnoException).code === "ENOENT" ||
+      (error instanceof CliError && error.exitCode === 127)
+        ? 127
+        : 125;
     const message =
       code === 127
         ? `sidekick: executable not found: ${invocation.command}\n`
@@ -128,7 +133,7 @@ async function discoverSessions(engine: string, directory: string): Promise<Map<
   if (engine === "hermes") {
     try {
       const sqlite = await import("node:sqlite");
-      const database = new sqlite.DatabaseSync(join(homedir(), ".hermes", "state.db"), {
+      const database = new sqlite.DatabaseSync(join(engineStatePath("hermes"), "state.db"), {
         readOnly: true,
       });
       try {
@@ -183,10 +188,10 @@ export async function validateAdoptedSession(
     const sessions = await discoverSessions(engine, directory);
     return sessions.size ? sessions.has(session) : null;
   }
-  const root =
-    engine === "codex"
-      ? join(homedir(), ".codex", "sessions")
-      : join(homedir(), ".claude", "projects");
+  const root = join(
+    engineStatePath(engine === "codex" ? "codex" : "claude"),
+    engine === "codex" ? "sessions" : "projects",
+  );
   try {
     const pending = [root];
     while (pending.length) {

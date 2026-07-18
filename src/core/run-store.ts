@@ -1,5 +1,15 @@
 import { constants } from "node:fs";
-import { access, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
+import {
+  access,
+  mkdir,
+  readFile,
+  readdir,
+  rename,
+  rm,
+  stat,
+  unlink,
+  writeFile,
+} from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -81,7 +91,22 @@ export class RunStore {
       `.${path.split(/[\\/]/u).pop() ?? "value"}.${process.pid}.${randomUUID()}.tmp`,
     );
     await writeFile(temporary, value, { encoding: "utf8", mode: 0o600 });
-    await rename(temporary, path);
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        await rename(temporary, path);
+        break;
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code;
+        if (
+          !["EACCES", "EBUSY", "EEXIST", "ENOTEMPTY", "EPERM"].includes(code ?? "") ||
+          attempt >= 5
+        ) {
+          await unlink(temporary).catch(() => undefined);
+          throw error;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 10 * 2 ** attempt));
+      }
+    }
   }
 
   async readText(path: string, fallback = ""): Promise<string> {
