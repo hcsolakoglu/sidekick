@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- `sidekick doctor` engine installation, operating-system support, executable-resolution, and state-path diagnostics.
+- Cross-platform command-resolver and native Windows process-handling tests.
+
+### Changed
+
+- Windows npm command shims are unwrapped to native or JavaScript entry points without shell interpolation.
+- Force resend terminates complete process trees on Windows and detached process groups on POSIX.
+- Atomic state replacement retries transient Windows filesystem sharing violations.
+- Engine state discovery honors Codex, Claude Code, and Hermes home overrides.
+
 ## [0.1.0] - 2026-07-18
 
 ### Added

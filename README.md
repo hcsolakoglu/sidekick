@@ -40,6 +40,7 @@ sidekick tail NAME [-n LINES]
 sidekick status [--json]
 sidekick result NAME [--json]
 sidekick clean [NAME ...]
+sidekick doctor [ENGINE ...] [--json]
 ```
 
 - `spawn` creates a named run and starts a detached worker. Names match `[A-Za-z0-9][A-Za-z0-9._-]{0,79}`.
@@ -49,6 +50,7 @@ sidekick clean [NAME ...]
 - `tail` follows the current output using Node filesystem APIs on every supported OS.
 - `status` lists all runs; `result` prints one run's current output.
 - `clean` deletes terminal runs and skips running ones. With no names, it considers every run.
+- `doctor` reports the current OS support level, safe executable resolution, and state location for each engine. Pass engine names to narrow the check. It exits 1 if a selected engine is missing or unsupported.
 
 Run `sidekick --help` for the compact command reference.
 
@@ -86,6 +88,25 @@ locks/
 
 Writes that define state are atomic. Run mutations use portable lock directories and stale-lock recovery.
 
+## Engine and operating-system support
+
+This matrix reflects the upstream documentation reviewed on 2026-07-18. “Native” means the engine can run directly from PowerShell/Windows Terminal rather than only inside WSL.
+
+| Engine      | Linux     | macOS     | Native Windows | WSL                               | Install and session behavior                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ----------- | --------- | --------- | -------------- | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Codex CLI   | Supported | Supported | Supported      | Supported                         | Standalone installers are available for macOS/Linux and PowerShell; npm and Homebrew are also documented. `codex exec resume` is the same non-interactive resume surface across platforms. State defaults to `CODEX_HOME` or `~/.codex`; on native Windows, `~` is `%USERPROFILE%`. See the [Codex CLI](https://developers.openai.com/codex/cli), [Windows sandbox](https://developers.openai.com/codex/windows), [CLI reference](https://developers.openai.com/codex/cli/reference), and [configuration reference](https://developers.openai.com/codex/config-reference).                                                                                                                                                                                                                                                                                                          |
+| Devin CLI   | Supported | Supported | Supported      | Supported                         | Official installers cover macOS/Linux/WSL, Homebrew, native Windows x64/ARM64, and PowerShell. `--resume`, `--prompt-file`, and `--print` are documented; `devin list` and resume are scoped to the current directory, so sidekick always supplies the exact `cwd`, including Windows paths as an argv-free process option. User config is `%APPDATA%\devin\config.json` on Windows and `~/.config/devin/config.json` elsewhere; runtime data/logs use `%APPDATA%\devin\cli` or `~/.local/share/devin/cli`. Native Windows sandbox mode is unavailable, but sidekick does not enable it. See [Devin CLI quickstart](https://docs.devin.ai/cli), [commands](https://docs.devin.ai/cli/reference/commands), [configuration](https://docs.devin.ai/cli/reference/configuration/config-file), and [terminal compatibility](https://docs.devin.ai/cli/reference/terminal-compatibility). |
+| Claude Code | Supported | Supported | Supported      | Supported                         | Native installers, WinGet, Homebrew, Linux packages, and npm are supported. Current npm packages install a native per-platform binary, not a Node entry point. `claude -p --resume` is documented and uses the same session semantics across supported platforms. User state is `~/.claude` and resolves to `%USERPROFILE%\.claude` on Windows. Native Windows works with PowerShell or optional Git Bash; sandboxing requires WSL2. See [advanced setup](https://code.claude.com/docs/en/setup), [CLI reference](https://code.claude.com/docs/en/cli-reference), and [settings](https://code.claude.com/docs/en/settings).                                                                                                                                                                                                                                                         |
+| Hermes      | Supported | Supported | Early beta     | Supported, recommended on Windows | The official installer provisions Python and a `hermes` launcher. Native Windows uses PowerShell and `%LOCALAPPDATA%\hermes`; WSL/Linux/macOS use `~/.hermes` unless `HERMES_HOME` is set. Sessions are stored in `state.db`. Native Windows explicitly remains early beta, with WSL2 recommended for the most tested path. See [installation](https://github.com/NousResearch/hermes-agent/blob/main/website/docs/getting-started/installation.md), [native Windows guide](https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/windows-native.md), and [sessions](https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/sessions.md).                                                                                                                                                                                          |
+
+Run `sidekick doctor --json` in deployment images rather than assuming an engine is usable merely because a same-named file exists on `PATH`.
+
+### Windows process handling
+
+Node documents that `.cmd` and `.bat` files cannot be executed directly without a command shell. Sidekick therefore resolves native executables directly and unwraps recognized npm `.cmd` shims to their JavaScript or native entry point. It rejects unrecognized batch shims; prompts are never sent through `cmd.exe`, `sh -c`, or shell-string interpolation. See the [Node child-process documentation](https://nodejs.org/api/child_process.html#spawning-bat-and-cmd-files-on-windows).
+
+Detached workers use `detached`, `unref`, file-backed stdio, and `windowsHide`. Force resend terminates the detached process group on POSIX. On Windows it invokes `taskkill.exe /PID PID /T /F` as a direct executable with an argv array, matching Microsoft’s documented [`/T` child-tree behavior](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/taskkill). Atomic state replacement retries transient Windows sharing violations without deleting the previously committed state file.
+
 ## Environment variables
 
 | Variable                     | Purpose                                                         |
@@ -118,6 +139,8 @@ Quoted paths are supported in command overrides, including Windows paths. Overri
 ## Troubleshooting
 
 - **Executable not found:** install the engine CLI or set its `SIDEKICK_ENGINE_<NAME>_CMD` override. The run completes with exit code 127 in its metadata.
+- **Unsafe `.cmd` shim:** install the engine’s current native distribution or point its command override at a native `.exe` or JavaScript entry. Sidekick intentionally refuses opaque batch wrappers because their arguments would be reparsed by `cmd.exe`.
+- **Platform uncertainty:** run `sidekick doctor ENGINE --json`. Hermes on native Windows is reported as beta; genuinely unsupported platforms are reported before a run is started.
 - **Run is still running:** inspect it with `tail` or `status`; use `send --force` only when replacing the active work is intentional.
 - **Worker died:** `status` and `wait` repair the state to `died` with exit `-1` when the detached worker vanishes before completion.
 - **No running runs:** pass explicit names to `wait`, or start a run first.
