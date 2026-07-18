@@ -2,6 +2,7 @@ import { watch } from "node:fs";
 import type { FSWatcher } from "node:fs";
 import { refresh } from "../core/run-service.js";
 import type { RunRecord, RunStore } from "../core/run-store.js";
+import { isProcessAlive, processIdentityMatches } from "../core/process.js";
 import { CliError } from "../utils/errors.js";
 import { parseOptions } from "./shared.js";
 
@@ -40,6 +41,31 @@ function closeWatcher(watcher: FSWatcher | undefined): Promise<void> {
   });
 }
 
+export function cachedIdentityMatcher(
+  maximumAgeMs = 250,
+  matches: typeof processIdentityMatches = processIdentityMatches,
+  alive: typeof isProcessAlive = isProcessAlive,
+  now: () => number = Date.now,
+  platform: NodeJS.Platform = process.platform,
+): typeof processIdentityMatches {
+  const verified = new Map<string, number>();
+  return async (pid, expected) => {
+    if (platform !== "win32") return matches(pid, expected);
+    if (!pid || !expected) return false;
+    const key = `${pid}\0${expected}`;
+    if (!alive(pid)) {
+      verified.delete(key);
+      return false;
+    }
+    const checkedAt = verified.get(key);
+    if (checkedAt !== undefined && now() - checkedAt < maximumAgeMs) return true;
+    const result = await matches(pid, expected);
+    if (result) verified.set(key, now());
+    else verified.delete(key);
+    return result;
+  };
+}
+
 export async function waitCommand(
   args: string[],
   store: RunStore,
@@ -69,11 +95,12 @@ export async function waitCommand(
   }
   const deadline = timeout === undefined ? Infinity : Date.now() + timeout * 1000;
   const reported = new Set<string>();
+  const identityMatches = cachedIdentityMatcher();
   while (true) {
     if (signal.aborted) return 130;
     records = await Promise.all(
       records.map((record) =>
-        store.read(record.meta.name).then((current) => refresh(store, current)),
+        store.read(record.meta.name).then((current) => refresh(store, current, identityMatches)),
       ),
     );
     for (const record of records) {
