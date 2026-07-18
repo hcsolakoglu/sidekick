@@ -1,0 +1,30 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - run: npm ci
+      - run: npm run prepack
+      - run: npm pack
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${GITHUB_REF_NAME}" ./*.tgz --generate-notes --verify-tag
+      # Trusted publishing uses GitHub OIDC; configure the npm package as a trusted publisher first.
+      - name: Publish to npm with provenance
+        if: vars.NPM_PUBLISH == 'true'
+        run: npm publish --provenance --access public
