@@ -9,6 +9,34 @@ export interface EnginePlatformSupport {
   detail: string;
 }
 
+export interface PromptSupport {
+  transport: "stdin" | "prompt-file" | "argv";
+  limit: string;
+}
+
+export function enginePromptSupport(
+  engine: EngineName,
+  platform: NodeJS.Platform = process.platform,
+): PromptSupport {
+  if (engine === "codex" || engine === "claude")
+    return {
+      transport: "stdin",
+      limit: "no Sidekick transport limit; model context still applies",
+    };
+  if (engine === "devin" || engine === "mock")
+    return {
+      transport: "prompt-file",
+      limit: "no Sidekick transport limit; model context still applies",
+    };
+  return {
+    transport: "argv",
+    limit:
+      platform === "win32"
+        ? "keep prompts below 24 KiB; Windows process command lines are limited to 32,767 characters"
+        : "99,941 bytes verified; OS argv and model context limits still apply",
+  };
+}
+
 export function isWsl(env: NodeJS.ProcessEnv = process.env): boolean {
   return Boolean(env.WSL_DISTRO_NAME) || /microsoft/iu.test(release());
 }
@@ -33,7 +61,8 @@ export function enginePlatformSupport(
   if (engine === "hermes" && platform === "win32") {
     return {
       level: "beta",
-      detail: "native Windows is early beta; WSL2 is the battle-tested path",
+      detail:
+        "native Windows is early beta; WSL2 is the battle-tested path; Hermes oneshot prompts use argv, so keep them below 24 KiB natively",
     };
   }
   if (engine === "devin" && platform === "win32") {

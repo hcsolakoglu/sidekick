@@ -1,8 +1,10 @@
 import { adoptCommand } from "./commands/adopt.js";
 import { cleanCommand } from "./commands/clean.js";
+import { cancelCommand } from "./commands/cancel.js";
 import { doctorCommand } from "./commands/doctor.js";
 import { resultCommand } from "./commands/result.js";
 import { sendCommand } from "./commands/send.js";
+import { skillCommand } from "./commands/skill.js";
 import { spawnCommand } from "./commands/spawn.js";
 import { statusCommand } from "./commands/status.js";
 import { tailCommand } from "./commands/tail.js";
@@ -16,15 +18,17 @@ export const VERSION = "0.1.0";
 export const HELP = `sidekick ${VERSION} — persistent local multi-agent orchestration
 
 Usage:
-  sidekick spawn ENGINE NAME [--dir PATH] [--model MODEL] [--mode MODE] -- PROMPT
-  sidekick send NAME [--force] -- PROMPT
+  sidekick spawn ENGINE NAME [--dir PATH] [--model MODEL] [--mode MODE] [--on-complete CMD] [--json] -- PROMPT
+  sidekick send NAME [--force] [--json] -- PROMPT
   sidekick wait [NAME ...] [--all] [--timeout SECONDS] [--quiet] [--json]
-  sidekick adopt ENGINE NAME --session ID [--dir PATH] [--model MODEL] [--mode MODE]
+  sidekick adopt ENGINE NAME --session ID [--dir PATH] [--model MODEL] [--mode MODE] [--json]
   sidekick tail NAME [-n LINES]
   sidekick status [--json]
   sidekick result NAME [--json]
-  sidekick clean [NAME ...]
+  sidekick clean [NAME ...] [--older-than DUR] [--keep-last N] [--json]
+  sidekick cancel NAME [--json]
   sidekick doctor [ENGINE ...] [--json]
+  sidekick skill install HARNESS [--force] [--json]
 
 Engines: codex, devin, claude, hermes, mock
 
@@ -33,7 +37,8 @@ Global options:
   -v, --version    Print the version
 
 Configuration precedence: command flag > environment > default.
-Environment: SIDEKICK_HOME, SIDEKICK_ENGINE_<NAME>_CMD, NO_COLOR, FORCE_COLOR, CI.
+Environment: SIDEKICK_HOME, SIDEKICK_ENGINE_<NAME>_CMD, SIDEKICK_ON_COMPLETE,
+  SIDEKICK_MAX_LOG_MB, SIDEKICK_MAX_CONCURRENT_<ENGINE>, NO_COLOR, FORCE_COLOR, CI.
 Exit codes: 0 success, 1 internal error, 2 usage error, 124 wait timeout, 130 interrupted.
 `;
 
@@ -72,11 +77,21 @@ export async function run(argv: string[], store = new RunStore()): Promise<numbe
         return await resultCommand(args, store);
       case "clean":
         return await cleanCommand(args, store);
+      case "cancel":
+        return await cancelCommand(args, store);
       case "doctor":
         return await doctorCommand(args, store);
+      case "skill":
+        return await skillCommand(args, store);
       case "_worker": {
-        const [name, turn, action] = args;
-        if (!name || !turn || !action || !["spawn", "resume", "fallback"].includes(action))
+        const [name, turn, action, token] = args;
+        if (
+          !name ||
+          !turn ||
+          !action ||
+          !token ||
+          !["spawn", "resume", "fallback"].includes(action)
+        )
           throw new CliError("invalid worker invocation", 1);
         return await executeWorker(store, name, Number(turn), action as WorkerAction);
       }

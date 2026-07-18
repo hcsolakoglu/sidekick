@@ -2,7 +2,12 @@ import { commandOverride } from "../core/engines/shared.js";
 import { engineNames } from "../core/engines/index.js";
 import type { EngineName } from "../core/engines/types.js";
 import { resolveCommand } from "../core/command-resolver.js";
-import { enginePlatformSupport, engineStatePath, platformLabel } from "../core/platform-support.js";
+import {
+  enginePlatformSupport,
+  enginePromptSupport,
+  engineStatePath,
+  platformLabel,
+} from "../core/platform-support.js";
 import type { RunStore } from "../core/run-store.js";
 import { CliError } from "../utils/errors.js";
 import { parseOptions } from "./shared.js";
@@ -16,6 +21,8 @@ interface DoctorResult {
   statePath: string;
   detail: string;
   error: string | null;
+  promptTransport: string;
+  promptLimit: string;
 }
 
 function engineCommand(engine: EngineName, env: NodeJS.ProcessEnv): string {
@@ -36,6 +43,7 @@ export async function doctorCommand(args: string[], store: RunStore): Promise<nu
   const results: DoctorResult[] = [];
   for (const name of selected as EngineName[]) {
     const support = enginePlatformSupport(name);
+    const prompt = enginePromptSupport(name);
     try {
       const resolved = await resolveCommand(engineCommand(name, process.env));
       results.push({
@@ -47,6 +55,8 @@ export async function doctorCommand(args: string[], store: RunStore): Promise<nu
         statePath: engineStatePath(name),
         detail: support.detail,
         error: null,
+        promptTransport: prompt.transport,
+        promptLimit: prompt.limit,
       });
     } catch (error) {
       results.push({
@@ -58,6 +68,8 @@ export async function doctorCommand(args: string[], store: RunStore): Promise<nu
         statePath: engineStatePath(name),
         detail: support.detail,
         error: error instanceof Error ? error.message : String(error),
+        promptTransport: prompt.transport,
+        promptLimit: prompt.limit,
       });
     }
   }
@@ -69,8 +81,8 @@ export async function doctorCommand(args: string[], store: RunStore): Promise<nu
     );
     for (const result of results) {
       const details = result.error
-        ? `${result.detail}; ${result.error}`
-        : `${result.detail}; ${result.resolution}: ${result.executable}; state: ${result.statePath}`;
+        ? `${result.detail}; prompt: ${result.promptTransport} (${result.promptLimit}); ${result.error}`
+        : `${result.detail}; prompt: ${result.promptTransport} (${result.promptLimit}); ${result.resolution}: ${result.executable}; state: ${result.statePath}`;
       process.stdout.write(
         `${result.engine.padEnd(9)} ${result.support.padEnd(11)} ${String(result.installed).padEnd(10)} ${details}\n`,
       );

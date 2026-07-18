@@ -10,17 +10,20 @@
     "dist",
     "bin",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "docs/harness-limits.md",
+    "skills"
   ],
   "engines": {
     "node": ">=20"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "node scripts/clean-dist.mjs && tsc -p tsconfig.json",
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "format:check": "prettier --check .",
     "test": "npm run build --silent && node --test --test-concurrency=1 test/**/*.test.js",
-    "prepack": "npm run build && npm test && npm run lint && npm run typecheck"
+    "prepack": "npm test && npm run lint && npm run typecheck && npm run format:check"
   },
   "keywords": [
     "agents",
