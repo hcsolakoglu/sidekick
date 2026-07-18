@@ -16,7 +16,8 @@ export function runCli(args, options = {}) {
   const inherited = { ...process.env };
   delete inherited.FORCE_COLOR;
   return new Promise((resolvePromise, reject) => {
-    const child = spawn(process.execPath, [cli, ...args], {
+    const diagnosticArgs = process.env.SIDEKICK_TEST_NO_MAGLEV === "1" ? ["--no-maglev"] : [];
+    const child = spawn(process.execPath, [...diagnosticArgs, cli, ...args], {
       cwd: options.cwd ?? root,
       env: { ...inherited, NO_COLOR: "1", CI: "true", ...options.env },
       windowsHide: true,
