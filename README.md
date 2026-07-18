@@ -32,15 +32,17 @@ sidekick wait demo --json
 ## Commands
 
 ```text
-sidekick spawn ENGINE NAME [--dir PATH] [--model MODEL] [--mode MODE] -- PROMPT
-sidekick send NAME [--force] -- PROMPT
+sidekick spawn ENGINE NAME [--dir PATH] [--model MODEL] [--mode MODE] [--on-complete CMD] [--json] -- PROMPT
+sidekick send NAME [--force] [--json] -- PROMPT
 sidekick wait [NAME ...] [--all] [--timeout SECONDS] [--quiet] [--json]
-sidekick adopt ENGINE NAME --session ID [--dir PATH] [--model MODEL] [--mode MODE]
+sidekick adopt ENGINE NAME --session ID [--dir PATH] [--model MODEL] [--mode MODE] [--json]
 sidekick tail NAME [-n LINES]
 sidekick status [--json]
 sidekick result NAME [--json]
-sidekick clean [NAME ...]
+sidekick clean [NAME ...] [--older-than DUR] [--keep-last N] [--json]
+sidekick cancel NAME [--json]
 sidekick doctor [ENGINE ...] [--json]
+sidekick skill install HARNESS [--force] [--json]
 ```
 
 - `spawn` creates a named run and starts a detached worker. Names match `[A-Za-z0-9][A-Za-z0-9._-]{0,79}`.
@@ -49,8 +51,10 @@ sidekick doctor [ENGINE ...] [--json]
 - `adopt` records an existing engine session without starting it.
 - `tail` follows the current output using Node filesystem APIs on every supported OS.
 - `status` lists all runs; `result` prints one run's current output.
-- `clean` deletes terminal runs and skips running ones. With no names, it considers every run.
+- `clean` deletes terminal runs and skips running ones. Retain recent runs with `--older-than 7d` and/or `--keep-last 10`.
+- `cancel` terminates the worker process tree, records `cancelled`, and preserves the engine session for a later `send`.
 - `doctor` reports the current OS support level, safe executable resolution, and state location for each engine. Pass engine names to narrow the check. It exits 1 if a selected engine is missing or unsupported.
+- `skill install` installs bundled instructions for `claude-code`, `codex`, `devin`, or `hermes`. Existing standalone files are not overwritten unless `--force` is supplied.
 
 Run `sidekick --help` for the compact command reference.
 
@@ -63,7 +67,8 @@ sidekick spawn claude migration --model sonnet --mode accept-edits -- "Inspect o
 sidekick spawn devin frontend --dir "C:\Work Files\app" -- "Run the UI tests"
 sidekick wait migration frontend --all --timeout 900 --quiet
 sidekick status --json
-sidekick clean migration frontend
+sidekick clean --older-than 7d --keep-last 10
+sidekick skill install claude-code
 ```
 
 When standard input is not a terminal and `CI` is not `true`, a prompt may come from stdin:
@@ -86,7 +91,7 @@ runs/NAME/
 locks/
 ```
 
-Writes that define state are atomic. Run mutations use portable lock directories and stale-lock recovery.
+Writes that define state are atomic. Run mutations use portable lock directories, process-identity checks, and stale-lock recovery. Engine stdout is appended live, then normalized on completion. `SIDEKICK_MAX_LOG_MB` bounds each log.
 
 ## Engine and operating-system support
 
@@ -101,24 +106,29 @@ This matrix reflects the upstream documentation reviewed on 2026-07-18. “Nativ
 
 Run `sidekick doctor --json` in deployment images rather than assuming an engine is usable merely because a same-named file exists on `PATH`.
 
+Prompt transport, the measured 99,941-byte real-harness checks, session scoping, cwd sensitivity, and auth/rate caveats are recorded in [docs/harness-limits.md](docs/harness-limits.md).
+
 ### Windows process handling
 
 Node documents that `.cmd` and `.bat` files cannot be executed directly without a command shell. Sidekick therefore resolves native executables directly and unwraps recognized npm `.cmd` shims to their JavaScript or native entry point. It rejects unrecognized batch shims; prompts are never sent through `cmd.exe`, `sh -c`, or shell-string interpolation. See the [Node child-process documentation](https://nodejs.org/api/child_process.html#spawning-bat-and-cmd-files-on-windows).
 
-Detached workers use `detached`, `unref`, file-backed stdio, and `windowsHide`. Force resend terminates the detached process group on POSIX. On Windows it invokes `taskkill.exe /PID PID /T /F` as a direct executable with an argv array, matching Microsoft’s documented [`/T` child-tree behavior](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/taskkill). Atomic state replacement retries transient Windows sharing violations without deleting the previously committed state file.
+Detached workers use `detached`, `unref`, file-backed stdio, and `windowsHide`. Force resend and `cancel` terminate the detached process group on POSIX. On Windows they invoke `taskkill.exe /PID PID /T /F` as a direct executable with an argv array, matching Microsoft’s documented [`/T` child-tree behavior](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/taskkill). Before liveness repair or termination, Sidekick checks both the PID and stored launch identity, preventing PID reuse from targeting an unrelated process. Atomic state replacement retries transient Windows sharing violations without deleting the previously committed state file.
 
 ## Environment variables
 
-| Variable                     | Purpose                                                         |
-| ---------------------------- | --------------------------------------------------------------- |
-| `SIDEKICK_HOME`              | Override the state directory.                                   |
-| `SIDEKICK_ENGINE_CODEX_CMD`  | Override the Codex executable, optionally with fixed arguments. |
-| `SIDEKICK_ENGINE_DEVIN_CMD`  | Override the Devin executable.                                  |
-| `SIDEKICK_ENGINE_CLAUDE_CMD` | Override the Claude executable.                                 |
-| `SIDEKICK_ENGINE_HERMES_CMD` | Override the Hermes executable.                                 |
-| `NO_COLOR`                   | Disable color. Machine-readable output never uses color.        |
-| `FORCE_COLOR`                | Force color when set to a value other than `0`.                 |
-| `CI=true`                    | Disable prompts and color.                                      |
+| Variable                           | Purpose                                                         |
+| ---------------------------------- | --------------------------------------------------------------- |
+| `SIDEKICK_HOME`                    | Override the state directory.                                   |
+| `SIDEKICK_ENGINE_CODEX_CMD`        | Override the Codex executable, optionally with fixed arguments. |
+| `SIDEKICK_ENGINE_DEVIN_CMD`        | Override the Devin executable.                                  |
+| `SIDEKICK_ENGINE_CLAUDE_CMD`       | Override the Claude executable.                                 |
+| `SIDEKICK_ENGINE_HERMES_CMD`       | Override the Hermes executable.                                 |
+| `SIDEKICK_ON_COMPLETE`             | Completion command, tokenized to argv and run without a shell.  |
+| `SIDEKICK_MAX_LOG_MB`              | Per-log cap in MiB; defaults to `10`.                           |
+| `SIDEKICK_MAX_CONCURRENT_<ENGINE>` | Maximum running turns for one engine.                           |
+| `NO_COLOR`                         | Disable color. Machine-readable output never uses color.        |
+| `FORCE_COLOR`                      | Force color when set to a value other than `0`.                 |
+| `CI=true`                          | Disable prompts and color.                                      |
 
 Quoted paths are supported in command overrides, including Windows paths. Overrides are tokenized into argv arrays and are never executed through a shell.
 
@@ -127,14 +137,14 @@ Quoted paths are supported in command overrides, including Windows paths. Overri
 | Code | Meaning                                                                                       |
 | ---: | --------------------------------------------------------------------------------------------- |
 |    0 | Command succeeded. An agent's own nonzero result remains available in status/result metadata. |
-|    1 | Unexpected internal CLI error.                                                                |
+|    1 | Internal or operational failure (including a concurrency limit).                              |
 |    2 | Invalid command, option, name, or other usage error.                                          |
 |  124 | `wait` reached its timeout.                                                                   |
 |  130 | Interrupted with Ctrl+C.                                                                      |
 
 ## JSON output
 
-`status --json` emits one object with a `runs` array. `result --json` emits `{name,status,exitCode,session,output}`. `wait --json` emits one JSON object per completed run (JSON Lines when `--all` selects multiple runs). JSON is written to stdout without ANSI color; diagnostics go to stderr.
+`status --json` emits one object with a `runs` array. `result --json` emits `{name,status,exitCode,session,output}`. `wait --json` emits one JSON object per completed run (JSON Lines when `--all` selects multiple runs). `spawn`, `send`, `adopt`, `cancel`, and `clean` also accept `--json`. JSON is written to stdout without ANSI color; diagnostics go to stderr.
 
 ## Troubleshooting
 
@@ -142,6 +152,8 @@ Quoted paths are supported in command overrides, including Windows paths. Overri
 - **Unsafe `.cmd` shim:** install the engine’s current native distribution or point its command override at a native `.exe` or JavaScript entry. Sidekick intentionally refuses opaque batch wrappers because their arguments would be reparsed by `cmd.exe`.
 - **Platform uncertainty:** run `sidekick doctor ENGINE --json`. Hermes on native Windows is reported as beta; genuinely unsupported platforms are reported before a run is started.
 - **Run is still running:** inspect it with `tail` or `status`; use `send --force` only when replacing the active work is intentional.
+- **Completion hook failed:** the run result is unchanged; inspect `run-N/hook.log`. Hooks receive `SIDEKICK_RUN_NAME`, `SIDEKICK_RUN_STATUS`, `SIDEKICK_RUN_EXIT_CODE`, and `SIDEKICK_RUN_SESSION`.
+- **Hermes large prompt on native Windows:** Hermes oneshot currently accepts its prompt through argv. Keep it below 24 KiB, use WSL, or choose another engine.
 - **Worker died:** `status` and `wait` repair the state to `died` with exit `-1` when the detached worker vanishes before completion.
 - **No running runs:** pass explicit names to `wait`, or start a run first.
 - **Stale state:** inspect the plain files under `SIDEKICK_HOME`; remove terminal runs with `clean`.

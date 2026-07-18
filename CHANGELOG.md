@@ -10,6 +10,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - `sidekick doctor` engine installation, operating-system support, executable-resolution, and state-path diagnostics.
 - Cross-platform command-resolver and native Windows process-handling tests.
+- Identity-safe worker liveness, `cancel`, completion hooks, retention cleanup, bounded live logs, per-engine concurrency caps, and JSON lifecycle commands.
+- Cross-harness Sidekick skill pack and `sidekick skill install`.
 
 ### Changed
 
@@ -17,6 +19,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Force resend terminates complete process trees on Windows and detached process groups on POSIX.
 - Atomic state replacement retries transient Windows filesystem sharing violations.
 - Engine state discovery honors Codex, Claude Code, and Hermes home overrides.
+- Codex and Claude prompts use stdin, Devin uses prompt files, and verified harness limits are documented.
+- CI enforces formatting and validates the packed mock roundtrip result.
 
 ## [0.1.0] - 2026-07-18
 

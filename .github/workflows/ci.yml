@@ -24,8 +24,8 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck
+      - run: npm run format:check
       - run: npm test
-      - run: npm run build
       - name: Packed-install smoke test
         shell: pwsh
         run: |
@@ -37,4 +37,7 @@ jobs:
           npm exec --prefix $smoke -- sidekick --help
           $env:SIDEKICK_HOME = Join-Path $smoke "state"
           npm exec --prefix $smoke -- sidekick spawn mock ci-roundtrip --dir $smoke -- "hello from CI"
-          npm exec --prefix $smoke -- sidekick wait ci-roundtrip --timeout 10 --json
+          $roundtrip = npm exec --prefix $smoke -- sidekick wait ci-roundtrip --timeout 10 --json | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or $roundtrip.status -ne "done" -or $roundtrip.exitCode -ne 0) {
+            throw "sidekick mock roundtrip failed: $($roundtrip | ConvertTo-Json -Compress)"
+          }
