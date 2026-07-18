@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "commands": [
+    { "path": "spawn", "flags": ["--dir", "--json", "--mode", "--model", "--on-complete"] },
+    { "path": "send", "flags": ["--force", "--json"] },
+    { "path": "wait", "flags": ["--all", "--json", "--quiet", "--timeout"] },
+    { "path": "adopt", "flags": ["--dir", "--json", "--mode", "--model", "--session"] },
+    { "path": "tail", "flags": ["-n"] },
+    { "path": "status", "flags": ["--json"] },
+    { "path": "result", "flags": ["--json"] },
+    { "path": "clean", "flags": ["--json", "--keep-last", "--older-than"] },
+    { "path": "cancel", "flags": ["--json"] },
+    { "path": "doctor", "flags": ["--json"] },
+    { "path": "skill install", "flags": ["--force", "--json"] }
+  ],
+  "globalFlags": ["--help", "--version", "-h", "-v"]
+}

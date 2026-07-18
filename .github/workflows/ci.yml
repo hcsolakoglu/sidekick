@@ -26,6 +26,7 @@ jobs:
       - run: npm run typecheck
       - run: npm run format:check
       - run: npm test
+      - run: npm run surface:check
       - name: Packed-install smoke test
         shell: pwsh
         run: |

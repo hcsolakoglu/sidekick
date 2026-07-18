@@ -11,7 +11,7 @@
     "bin",
     "README.md",
     "LICENSE",
-    "docs/harness-limits.md",
+    "docs",
     "skills"
   ],
   "engines": {
@@ -22,8 +22,10 @@
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "format:check": "prettier --check .",
+    "surface:check": "node scripts/check-surface-drift.mjs",
+    "smoke:mock": "npm run build --silent && node scripts/mock-roundtrip.mjs",
     "test": "npm run build --silent && node --test --test-concurrency=1 test/**/*.test.js",
-    "prepack": "npm test && npm run lint && npm run typecheck && npm run format:check"
+    "prepack": "npm test && npm run surface:check && npm run lint && npm run typecheck && npm run format:check"
   },
   "keywords": [
     "agents",
