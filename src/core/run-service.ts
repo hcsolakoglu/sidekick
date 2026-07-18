@@ -140,6 +140,25 @@ async function discoverSessions(engine: string, directory: string): Promise<Map<
         database.close();
       }
     } catch {
+      /* Node 20 has no built-in SQLite; use the Hermes read-only listing command. */
+    }
+    try {
+      const [command, ...leading] = commandOverride("hermes", "hermes", process.env);
+      if (!command) return new Map();
+      const result = await runProcess(
+        command,
+        [...leading, "sessions", "list", "--workspace", directory, "--limit", "1000"],
+        { cwd: directory },
+      );
+      const rows = result.stdout.split(/\r?\n/u);
+      const found = new Map<string, string>();
+      rows.forEach((row, index) => {
+        const id = /(?:^|\s)([A-Za-z0-9][A-Za-z0-9_-]{7,})\s*$/u.exec(row)?.[1];
+        if (id && !["Workspace", "Active", "Preview", "Title"].includes(id))
+          found.set(id, String(rows.length - index).padStart(6, "0"));
+      });
+      return found;
+    } catch {
       return new Map();
     }
   }

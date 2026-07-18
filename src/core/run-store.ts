@@ -261,11 +261,15 @@ export class RunStore {
       this.atomicWrite(join(turn, "out.log"), normalized),
       this.atomicWrite(join(turn, "session"), session ? `${session}\n` : ""),
       this.atomicWrite(join(turn, "exit"), `${exitCode}\n`),
-      this.atomicWrite(join(turn, "status"), `${status}\n`),
       this.atomicWrite(join(base, "out.log"), normalized),
       this.atomicWrite(join(base, "exit"), `${exitCode}\n`),
-      this.atomicWrite(join(base, "status"), `${status}\n`),
       ...(session ? [this.atomicWrite(join(base, "session"), `${session}\n`)] : []),
+    ]);
+    // Status is the commit marker: readers that observe a terminal value must
+    // also be able to observe the corresponding output, exit code, and session.
+    await Promise.all([
+      this.atomicWrite(join(turn, "status"), `${status}\n`),
+      this.atomicWrite(join(base, "status"), `${status}\n`),
     ]);
   }
 
