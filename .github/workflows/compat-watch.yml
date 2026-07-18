@@ -1,0 +1,64 @@
+name: Harness compatibility watch
+
+on:
+  schedule:
+    - cron: "17 7 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      needs_issue: ${{ steps.decision.outputs.needs_issue }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Install latest Codex without lifecycle scripts
+        run: npm install --global --ignore-scripts @openai/codex@latest
+      - name: Compare versions and probe adapter flags
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/check-harness-compat.mjs --probe --issue-body compat-issue.md > compat-report.json
+      - id: decision
+        name: Record whether follow-up is required
+        run: node -e "const r=require('./compat-report.json');require('node:fs').appendFileSync(process.env.GITHUB_OUTPUT,'needs_issue='+r.needsIssue+'\n')"
+      - if: steps.decision.outputs.needs_issue == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: harness-compat-report
+          path: |
+            compat-report.json
+            compat-issue.md
+          retention-days: 14
+
+  issue:
+    needs: check
+    if: needs.check.outputs.needs_issue == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: harness-compat-report
+      - name: Open an idempotent compatibility issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api --method GET "repos/$GITHUB_REPOSITORY/issues" -f state=open -f labels=harness-compat -f per_page=100 > open-issues.json
+          if node -e "const fs=require('node:fs');const markers=require('./compat-report.json').markers;const bodies=JSON.parse(fs.readFileSync('open-issues.json')).map(i=>i.body||'');process.exit(markers.every(m=>bodies.some(b=>b.includes(m)))?0:1)"; then
+            echo "Open issues already track every detected harness change"
+            exit 0
+          fi
+          gh api --method GET "repos/$GITHUB_REPOSITORY/labels/harness-compat" >/dev/null 2>&1 || \
+            gh api --method POST "repos/$GITHUB_REPOSITORY/labels" -f name=harness-compat -f color=8a2be2 -f description="Agent harness adapter compatibility"
+          title=$(node -e "const r=require('./compat-report.json');const changed=r.updates.map(x=>x.engine+' '+x.latest).join(', ');process.stdout.write('Harness compatibility follow-up: '+(changed||'adapter flag probe'))")
+          gh api --method POST "repos/$GITHUB_REPOSITORY/issues" -f title="$title" -F body=@compat-issue.md -f labels[]=harness-compat

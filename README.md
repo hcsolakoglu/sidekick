@@ -164,7 +164,7 @@ Prompts can contain sensitive information and are stored on disk. State files ar
 
 ## Contributing
 
-Run `npm ci`, `npm run build`, and `npm test` before submitting changes. The full required check is `npm run prepack`. See [CONTRIBUTING.md](CONTRIBUTING.md).
+Run `npm ci`, then follow the canonical verification and portability contract in [AGENTS.md](AGENTS.md). Human review and submission steps are in [CONTRIBUTING.md](CONTRIBUTING.md). The weekly compatibility watch compares the official release sources recorded in [docs/tested-versions.json](docs/tested-versions.json) and probes every adapter-dependent flag.
 
 ## License
 

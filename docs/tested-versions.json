@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "checkedAt": "2026-07-18",
+  "harnesses": {
+    "codex-cli": {
+      "testedVersion": "0.144.4",
+      "adapter": "src/core/engines/codex.ts",
+      "latestStableSource": {
+        "kind": "npm",
+        "url": "https://registry.npmjs.org/@openai%2Fcodex/latest",
+        "field": "version",
+        "documentation": "https://github.com/openai/codex/tree/main/codex-cli"
+      }
+    },
+    "devin": {
+      "testedVersion": "3000.1.27",
+      "adapter": "src/core/engines/devin.ts",
+      "latestStableSource": {
+        "kind": "vendor-manifest",
+        "url": "https://static.devin.ai/cli/current/manifest.json",
+        "field": "version",
+        "documentation": "https://docs.devin.ai/cli"
+      }
+    },
+    "claude": {
+      "testedVersion": "2.1.214",
+      "adapter": "src/core/engines/claude.ts",
+      "latestStableSource": {
+        "kind": "github-release",
+        "url": "https://api.github.com/repos/anthropics/claude-code/releases/latest",
+        "field": "tag_name",
+        "documentation": "https://code.claude.com/docs/en/setup"
+      }
+    },
+    "hermes": {
+      "testedVersion": "0.18.2",
+      "adapter": "src/core/engines/hermes.ts",
+      "latestStableSource": {
+        "kind": "github-release",
+        "url": "https://api.github.com/repos/NousResearch/hermes-agent/releases/latest",
+        "field": "name (package version)",
+        "distribution": "https://pypi.org/pypi/hermes-agent/VERSION/json",
+        "documentation": "https://github.com/NousResearch/hermes-agent"
+      }
+    }
+  }
+}
