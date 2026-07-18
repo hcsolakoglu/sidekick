@@ -30,15 +30,22 @@ jobs:
       - name: Packed-install smoke test
         shell: pwsh
         run: |
-          $tarball = npm pack --silent
+          # prepack also writes to stdout, so only the last line is the tarball.
+          $tarball = (npm pack --silent | Select-Object -Last 1).Trim()
           $smoke = Join-Path $env:RUNNER_TEMP "sidekick-pack-smoke"
           New-Item -ItemType Directory -Force -Path $smoke | Out-Null
           npm install --prefix $smoke (Join-Path $PWD $tarball)
-          npm exec --prefix $smoke -- sidekick --version
-          npm exec --prefix $smoke -- sidekick --help
+          # Invoke the installed shim directly. `npm exec -- sidekick` falls back
+          # to downloading the unrelated public `sidekick` package when local
+          # resolution misses, which masks failures and runs untrusted code.
+          $bin = Join-Path $smoke "node_modules/.bin/sidekick"
+          if ($IsWindows) { $bin = "$bin.cmd" }
+          if (-not (Test-Path $bin)) { throw "packed install did not create $bin" }
+          & $bin --version
+          & $bin --help
           $env:SIDEKICK_HOME = Join-Path $smoke "state"
-          npm exec --prefix $smoke -- sidekick spawn mock ci-roundtrip --dir $smoke -- "hello from CI"
-          $roundtrip = npm exec --prefix $smoke -- sidekick wait ci-roundtrip --timeout 10 --json | ConvertFrom-Json
+          & $bin spawn mock ci-roundtrip --dir $smoke -- "hello from CI"
+          $roundtrip = & $bin wait ci-roundtrip --timeout 10 --json | ConvertFrom-Json
           if ($LASTEXITCODE -ne 0 -or $roundtrip.status -ne "done" -or $roundtrip.exitCode -ne 0) {
             throw "sidekick mock roundtrip failed: $($roundtrip | ConvertTo-Json -Compress)"
           }
