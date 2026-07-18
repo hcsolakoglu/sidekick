@@ -13,6 +13,7 @@ export async function adoptCommand(args: string[], store: RunStore): Promise<num
       dir: { type: "string" },
       model: { type: "string" },
       mode: { type: "string" },
+      json: { type: "boolean", default: false },
     },
   });
   const [engineName, name] = positionals;
@@ -48,6 +49,10 @@ export async function adoptCommand(args: string[], store: RunStore): Promise<num
     await store.complete(name, turn, 0, values.session ?? "", prompt);
     await store.atomicWrite(join(turn, "adopted"), "true\n");
   });
-  process.stdout.write(`${name}\n`);
+  process.stdout.write(
+    values.json
+      ? `${JSON.stringify({ name, engine: engine.name, status: "done", run: 1, session: values.session })}\n`
+      : `${name}\n`,
+  );
   return 0;
 }

@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { fileURLToPath } from "node:url";
 import type { Engine } from "./types.js";
 import { invocation } from "./shared.js";
 
@@ -8,7 +9,7 @@ export const mockEngine: Engine = {
     return invocation(
       [process.execPath],
       [
-        new URL("./mock-runner.js", import.meta.url).pathname,
+        fileURLToPath(new URL("./mock-runner.js", import.meta.url)),
         "--delay",
         String(context.delayMs),
         "--session",

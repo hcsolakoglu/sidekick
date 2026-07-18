@@ -9,14 +9,16 @@ import {
   stat,
   unlink,
   writeFile,
+  appendFile,
 } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { CliError } from "../utils/errors.js";
 import type { EngineName } from "./engines/types.js";
+import { processIdentity, processIdentityMatches } from "./process.js";
 
-export type RunStatus = "running" | "done" | "died";
+export type RunStatus = "running" | "done" | "died" | "cancelled";
 export interface RunMeta {
   schemaVersion: 1;
   name: string;
@@ -27,6 +29,7 @@ export interface RunMeta {
   activeRun: number;
   createdAt: string;
   updatedAt: string;
+  onComplete?: string;
 }
 export interface RunRecord {
   meta: RunMeta;
@@ -35,6 +38,7 @@ export interface RunRecord {
   session: string;
   output: string;
   pid: number | null;
+  identity: string;
 }
 
 const NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/u;
@@ -125,24 +129,29 @@ export class RunStore {
       if (this.interrupted) throw new CliError("interrupted", 130);
       try {
         await mkdir(lockPath);
-        await writeFile(join(lockPath, "owner"), `${process.pid}\n`, { mode: 0o600 });
+        await writeFile(
+          join(lockPath, "owner"),
+          `${JSON.stringify({ pid: process.pid, identity: await processIdentity(process.pid) })}\n`,
+          { mode: 0o600 },
+        );
         break;
       } catch (error) {
         const code = (error as NodeJS.ErrnoException).code;
         if (code !== "EEXIST") throw error;
         try {
-          const owner = Number((await readFile(join(lockPath, "owner"), "utf8")).trim());
-          let ownerAlive = false;
-          if (owner > 0) {
-            try {
-              process.kill(owner, 0);
-              ownerAlive = true;
-            } catch {
-              /* dead owner */
-            }
-          }
+          const raw = (await readFile(join(lockPath, "owner"), "utf8")).trim();
+          const legacyPid = Number(raw);
+          const owner = Number.isInteger(legacyPid)
+            ? { pid: legacyPid, identity: "" }
+            : (JSON.parse(raw) as { pid: number; identity: string });
+          const ownerAlive = owner.identity
+            ? await processIdentityMatches(owner.pid, owner.identity)
+            : owner.pid > 0 && isPidAlive(owner.pid);
           const info = await stat(lockPath);
-          if ((!ownerAlive && owner > 0) || (!owner && Date.now() - info.mtimeMs > 30_000)) {
+          if (
+            (!ownerAlive && owner.pid > 0) ||
+            (!owner.pid && Date.now() - info.mtimeMs > 30_000)
+          ) {
             await rm(lockPath, { recursive: true, force: true });
             continue;
           }
@@ -217,12 +226,13 @@ export class RunStore {
   async read(name: string): Promise<RunRecord> {
     const base = this.runPath(name);
     const meta = await this.readMeta(name);
-    const [status, exit, session, output, pid] = await Promise.all([
+    const [status, exit, session, output, pid, identity] = await Promise.all([
       this.readText(join(base, "status")),
       this.readText(join(base, "exit")),
       this.readText(join(base, "session")),
       this.readText(join(base, "out.log")),
       this.readText(join(base, "pid")),
+      this.readText(join(base, "identity")),
     ]);
     return {
       meta,
@@ -231,6 +241,7 @@ export class RunStore {
       session: session.trim(),
       output,
       pid: /^\d+$/u.test(pid.trim()) ? Number(pid.trim()) : null,
+      identity: identity.trim(),
     };
   }
 
@@ -265,11 +276,28 @@ export class RunStore {
     );
   }
 
-  async writePid(name: string, turn: string, pid: number): Promise<void> {
+  async writePid(name: string, turn: string, pid: number, identity: string): Promise<void> {
     await Promise.all([
       this.atomicWrite(join(this.runPath(name), "pid"), `${pid}\n`),
       this.atomicWrite(join(turn, "pid"), `${pid}\n`),
+      this.atomicWrite(join(this.runPath(name), "identity"), `${identity}\n`),
+      this.atomicWrite(join(turn, "identity"), `${identity}\n`),
     ]);
+  }
+
+  async appendLog(path: string, value: string, maxBytes: number): Promise<void> {
+    if (!value) return;
+    await mkdir(dirname(path), { recursive: true, mode: 0o700 });
+    await appendFile(path, value, { encoding: "utf8", mode: 0o600 });
+    const size = (await stat(path)).size;
+    if (size <= maxBytes) return;
+    const content = await readFile(path);
+    const marker = Buffer.from("[sidekick: earlier log output truncated]\n", "utf8");
+    const keep = Math.max(0, maxBytes - marker.length);
+    await this.atomicWrite(
+      path,
+      Buffer.concat([marker, content.subarray(content.length - keep)]).toString("utf8"),
+    );
   }
 
   async complete(
@@ -282,12 +310,17 @@ export class RunStore {
   ): Promise<void> {
     const base = this.runPath(name);
     const normalized = output && !output.endsWith("\n") ? `${output}\n` : output;
+    const meta = await this.readMeta(name);
     await Promise.all([
       this.atomicWrite(join(turn, "out.log"), normalized),
       this.atomicWrite(join(turn, "session"), session ? `${session}\n` : ""),
       this.atomicWrite(join(turn, "exit"), `${exitCode}\n`),
       this.atomicWrite(join(base, "out.log"), normalized),
       this.atomicWrite(join(base, "exit"), `${exitCode}\n`),
+      this.atomicWrite(
+        join(base, "meta.json"),
+        `${JSON.stringify({ ...meta, updatedAt: new Date().toISOString() }, null, 2)}\n`,
+      ),
       ...(session ? [this.atomicWrite(join(base, "session"), `${session}\n`)] : []),
     ]);
     // Status is the commit marker: readers that observe a terminal value must
@@ -300,5 +333,14 @@ export class RunStore {
 
   async remove(name: string): Promise<void> {
     await rm(this.runPath(name), { recursive: true, force: true });
+  }
+}
+
+function isPidAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
   }
 }

@@ -1,25 +1,70 @@
 import type { RunStore } from "../core/run-store.js";
 import { refresh } from "../core/run-service.js";
+import { CliError } from "../utils/errors.js";
 import { parseOptions } from "./shared.js";
 
+export function parseDuration(value: string): number {
+  const match = /^(\d+(?:\.\d+)?)(ms|s|m|h|d|w)$/u.exec(value.trim());
+  if (!match) throw new CliError("duration must look like 30m, 24h, or 7d");
+  const amount = Number(match[1]);
+  const units: Record<string, number> = {
+    ms: 1,
+    s: 1000,
+    m: 60_000,
+    h: 3_600_000,
+    d: 86_400_000,
+    w: 604_800_000,
+  };
+  return amount * (units[match[2] ?? ""] ?? 0);
+}
+
 export async function cleanCommand(args: string[], store: RunStore): Promise<number> {
-  const { positionals } = parseOptions(args, { options: {} });
-  const targets = positionals.length
-    ? positionals
-    : (await store.list()).map((record) => record.meta.name);
-  let removed = 0;
-  for (const name of targets) {
-    if (!(await store.exists(name))) continue;
+  const { values, positionals } = parseOptions(args, {
+    options: {
+      "older-than": { type: "string" },
+      "keep-last": { type: "string", default: "0" },
+      json: { type: "boolean", default: false },
+    },
+  });
+  const keepLast = Number(values["keep-last"]);
+  if (!Number.isInteger(keepLast) || keepLast < 0)
+    throw new CliError("--keep-last must be a non-negative integer");
+  const cutoff = values["older-than"] ? Date.now() - parseDuration(values["older-than"]) : Infinity;
+  const selected = positionals.length ? new Set(positionals) : null;
+  const records = (await Promise.all((await store.list()).map((record) => refresh(store, record))))
+    .filter((record) => !selected || selected.has(record.meta.name))
+    .sort((left, right) => right.meta.updatedAt.localeCompare(left.meta.updatedAt));
+  const protectedNames = new Set(
+    records
+      .filter((record) => record.status !== "running")
+      .slice(0, keepLast)
+      .map((record) => record.meta.name),
+  );
+  const removed: string[] = [];
+  const skippedRunning: string[] = [];
+  const kept: string[] = [];
+  for (const record of records) {
+    const name = record.meta.name;
+    if (record.status === "running") {
+      skippedRunning.push(name);
+      process.stderr.write(`sidekick: skipping running run: ${name}\n`);
+      continue;
+    }
+    if (protectedNames.has(name) || Date.parse(record.meta.updatedAt) > cutoff) {
+      kept.push(name);
+      continue;
+    }
     await store.withLock(name, async () => {
-      const record = await refresh(store, await store.read(name));
-      if (record.status === "running") {
-        process.stderr.write(`sidekick: skipping running run: ${name}\n`);
+      const current = await refresh(store, await store.read(name));
+      if (current.status === "running") {
+        skippedRunning.push(name);
         return;
       }
       await store.remove(name);
-      removed += 1;
+      removed.push(name);
     });
   }
-  process.stdout.write(`removed ${removed}\n`);
+  if (values.json) process.stdout.write(`${JSON.stringify({ removed, skippedRunning, kept })}\n`);
+  else process.stdout.write(`removed ${removed.length}\n`);
   return 0;
 }

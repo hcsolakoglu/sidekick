@@ -10,9 +10,13 @@ const { values } = parseArgs({
     "prompt-file": { type: "string" },
   },
 });
-await new Promise((resolve) => setTimeout(resolve, Number(values.delay ?? 20)));
 const prompt = await readFile(values["prompt-file"] ?? "", "utf8");
 const session = values.session || `mock-${randomUUID()}`;
+if (process.env.SIDEKICK_MOCK_STREAM_MS) {
+  process.stdout.write("mock progress\n");
+  await new Promise((resolve) => setTimeout(resolve, Number(process.env.SIDEKICK_MOCK_STREAM_MS)));
+}
+await new Promise((resolve) => setTimeout(resolve, Number(values.delay ?? 20)));
 process.stdout.write(
-  `SIDEKICK_MOCK_SESSION=${session}\nmock ${values.action ?? "spawn"}: ${prompt.trim()}\n`,
+  `SIDEKICK_MOCK_SESSION=${session}\nmock ${values.action ?? "spawn"}: ${prompt.trim()}${"x".repeat(Number(process.env.SIDEKICK_MOCK_OUTPUT_BYTES ?? 0))}\n`,
 );

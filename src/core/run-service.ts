@@ -1,16 +1,27 @@
-import { readdir, writeFile } from "node:fs/promises";
+import { readdir } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { getEngine } from "./engines/index.js";
 import { commandOverride } from "./engines/shared.js";
 import type { WorkerAction } from "./engines/types.js";
-import { isProcessAlive, launchWorker, runProcess, stopProcess } from "./process.js";
+import { launchWorker, processIdentityMatches, runProcess, stopProcess } from "./process.js";
 import { RunStore, type RunRecord } from "./run-store.js";
 import { engineStatePath } from "./platform-support.js";
 import { CliError } from "../utils/errors.js";
+import { splitCommand } from "./engines/shared.js";
+
+const DEFAULT_MAX_LOG_MB = 10;
+
+export function maxLogBytes(env: NodeJS.ProcessEnv = process.env): number {
+  const raw = env.SIDEKICK_MAX_LOG_MB;
+  const value = raw === undefined ? DEFAULT_MAX_LOG_MB : Number(raw);
+  if (!Number.isFinite(value) || value <= 0)
+    throw new CliError("SIDEKICK_MAX_LOG_MB must be a positive number");
+  return Math.max(1024, Math.floor(value * 1024 * 1024));
+}
 
 export async function refresh(store: RunStore, record: RunRecord): Promise<RunRecord> {
-  if (record.status === "running" && !isProcessAlive(record.pid)) {
+  if (record.status === "running" && !(await processIdentityMatches(record.pid, record.identity))) {
     const turn = store.turnPath(record.meta.name, record.meta.activeRun);
     const message = `${record.output}sidekick: worker process died before recording completion\n`;
     await store.complete(record.meta.name, turn, -1, record.session, message, "died");
@@ -28,8 +39,32 @@ export async function startWorker(
   return launchWorker(store, name, store.turnPath(name, turnNumber), action);
 }
 
+export async function withEngineSlot<T>(
+  store: RunStore,
+  engine: string,
+  callback: () => Promise<T>,
+): Promise<T> {
+  const raw = process.env[`SIDEKICK_MAX_CONCURRENT_${engine.toUpperCase()}`];
+  if (raw === undefined) return callback();
+  const limit = Number(raw);
+  if (!Number.isInteger(limit) || limit < 1)
+    throw new CliError(
+      `SIDEKICK_MAX_CONCURRENT_${engine.toUpperCase()} must be a positive integer`,
+    );
+  return store.withLock(`capacity-${engine}`, async () => {
+    const records = await Promise.all((await store.list()).map((record) => refresh(store, record)));
+    const running = records.filter(
+      (record) => record.meta.engine === engine && record.status === "running",
+    ).length;
+    if (running >= limit)
+      throw new CliError(`${engine} concurrency limit reached (${running}/${limit})`, 1);
+    return callback();
+  });
+}
+
 export async function forceStop(store: RunStore, record: RunRecord): Promise<void> {
-  if (record.pid && isProcessAlive(record.pid)) await stopProcess(record.pid);
+  if (record.pid && (await processIdentityMatches(record.pid, record.identity)))
+    await stopProcess(record.pid);
   const turn = store.turnPath(record.meta.name, record.meta.activeRun);
   await store.complete(
     record.meta.name,
@@ -37,7 +72,7 @@ export async function forceStop(store: RunStore, record: RunRecord): Promise<voi
     -1,
     record.session,
     `${record.output}sidekick: worker stopped by --force\n`,
-    "died",
+    "cancelled",
   );
 }
 
@@ -65,6 +100,7 @@ export async function executeWorker(
     env: process.env,
   };
   const invocation = engine.build(context);
+  const maximum = maxLogBytes();
   await store.atomicWrite(
     join(turn, "command.json"),
     `${JSON.stringify([invocation.command, ...invocation.args], null, 2)}\n`,
@@ -74,12 +110,22 @@ export async function executeWorker(
       action === "resume"
         ? new Map<string, string>()
         : await discoverSessions(record.meta.engine, record.meta.directory);
+    let stream = Promise.resolve();
+    const append = (path: string, chunk: string) => {
+      stream = stream.then(() => store.appendLog(path, chunk, maximum));
+      return stream;
+    };
     const result = await runProcess(invocation.command, invocation.args, {
       cwd: record.meta.directory,
       ...(invocation.stdin === undefined ? {} : { stdin: invocation.stdin }),
+      maxCaptureBytes: maximum,
+      onStdout: async (chunk) => {
+        await append(join(turn, "raw.log"), chunk);
+        await append(join(store.runPath(name), "out.log"), chunk);
+      },
+      onStderr: (chunk) => append(join(turn, "stderr.log"), chunk),
     });
-    await writeFile(join(turn, "raw.log"), result.stdout, "utf8");
-    await writeFile(join(turn, "stderr.log"), result.stderr, "utf8");
+    await stream;
     const parsed = engine.parse(result.stdout, context);
     if (!parsed.session && action !== "resume") {
       const after = await discoverSessions(record.meta.engine, record.meta.directory);
@@ -88,7 +134,7 @@ export async function executeWorker(
     const output = result.stderr.trim()
       ? `${parsed.output.trimEnd()}\n\n[stderr]\n${result.stderr.trimEnd()}\n`
       : parsed.output;
-    await store.complete(name, turn, result.code, parsed.session, output);
+    await store.complete(name, turn, result.code, parsed.session, capText(output, maximum));
     return result.code;
   };
   try {
@@ -109,6 +155,51 @@ export async function executeWorker(
         : `sidekick worker error: ${error instanceof Error ? error.message : String(error)}\n`;
     await store.complete(name, turn, code, record.session, message);
     return code;
+  } finally {
+    await runCompletionHook(store, record, turn, maximum);
+  }
+}
+
+function capText(value: string, maximum: number): string {
+  const content = Buffer.from(value, "utf8");
+  if (content.length <= maximum) return value;
+  const marker = Buffer.from("[sidekick: earlier output truncated]\n", "utf8");
+  return Buffer.concat([
+    marker,
+    content.subarray(content.length - maximum + marker.length),
+  ]).toString("utf8");
+}
+
+async function runCompletionHook(
+  store: RunStore,
+  record: RunRecord,
+  turn: string,
+  maximum: number,
+): Promise<void> {
+  const raw = record.meta.onComplete || process.env.SIDEKICK_ON_COMPLETE;
+  if (!raw) return;
+  try {
+    const [command, ...args] = splitCommand(raw);
+    if (!command) return;
+    const current = await store.read(record.meta.name);
+    const result = await runProcess(command, args, {
+      cwd: record.meta.directory,
+      env: {
+        ...process.env,
+        SIDEKICK_RUN_NAME: record.meta.name,
+        SIDEKICK_RUN_STATUS: current.status,
+        SIDEKICK_RUN_EXIT_CODE: String(current.exitCode ?? ""),
+        SIDEKICK_RUN_SESSION: current.session,
+      },
+      maxCaptureBytes: maximum,
+    });
+    await store.appendLog(join(turn, "hook.log"), `${result.stdout}${result.stderr}`, maximum);
+  } catch (error) {
+    await store.appendLog(
+      join(turn, "hook.log"),
+      `sidekick completion hook error: ${error instanceof Error ? error.message : String(error)}\n`,
+      maximum,
+    );
   }
 }
 

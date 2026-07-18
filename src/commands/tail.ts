@@ -36,8 +36,11 @@ export async function tailCommand(
           if (size < offset) offset = 0;
           const handle = await open(path, "r");
           const buffer = Buffer.alloc(size - offset);
-          await handle.read(buffer, 0, buffer.length, offset);
-          await handle.close();
+          try {
+            await handle.read(buffer, 0, buffer.length, offset);
+          } finally {
+            await handle.close();
+          }
           offset = size;
           process.stdout.write(buffer);
         } catch {

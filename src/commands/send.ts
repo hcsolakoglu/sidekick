@@ -1,13 +1,16 @@
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
-import { forceStop, refresh, startWorker } from "../core/run-service.js";
+import { forceStop, refresh, startWorker, withEngineSlot } from "../core/run-service.js";
 import type { RunStore } from "../core/run-store.js";
 import { CliError } from "../utils/errors.js";
 import { fallbackPrompt, parseOptions, promptFrom } from "./shared.js";
 
 export async function sendCommand(args: string[], store: RunStore): Promise<number> {
   const { values, positionals } = parseOptions(args, {
-    options: { force: { type: "boolean", default: false } },
+    options: {
+      force: { type: "boolean", default: false },
+      json: { type: "boolean", default: false },
+    },
   });
   const [name, ...promptParts] = positionals;
   if (!name) throw new CliError("usage: sidekick send NAME [--force] -- PROMPT");
@@ -34,13 +37,20 @@ export async function sendCommand(args: string[], store: RunStore): Promise<numb
       actual = await fallbackPrompt(store.runPath(name), turns, prompt);
       action = "fallback";
     }
-    const turn = await store.initializeTurn(name, number, actual, record.session);
-    await Promise.all([
-      store.atomicWrite(join(turn, "followup"), prompt),
-      store.atomicWrite(join(turn, "resume_mode"), `${action}\n`),
-    ]);
-    await startWorker(store, name, number, action);
+    await withEngineSlot(store, record.meta.engine, async () => {
+      const turn = await store.initializeTurn(name, number, actual, record.session);
+      await Promise.all([
+        store.atomicWrite(join(turn, "followup"), prompt),
+        store.atomicWrite(join(turn, "resume_mode"), `${action}\n`),
+      ]);
+      await startWorker(store, name, number, action);
+    });
   });
-  process.stdout.write(`${name}\n`);
+  const current = await store.read(name);
+  process.stdout.write(
+    values.json
+      ? `${JSON.stringify({ name, engine: current.meta.engine, status: current.status, run: current.meta.activeRun })}\n`
+      : `${name}\n`,
+  );
   return 0;
 }
