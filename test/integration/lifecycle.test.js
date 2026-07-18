@@ -96,6 +96,25 @@ test("clean removes terminal runs and skips active runs", async () => {
   assert.equal((await runCli(["clean", "active"], { env })).stdout, "removed 1\n");
 });
 
+test("doctor reports machine-readable engine support and resolution", async () => {
+  const sandbox = await temporary();
+  const result = await runCli(["doctor", "mock", "--json"], {
+    env: { SIDEKICK_HOME: join(sandbox, "home") },
+  });
+  assert.equal(result.code, 0);
+  const report = JSON.parse(result.stdout);
+  assert.equal(typeof report.platform, "string");
+  assert.deepEqual(
+    report.results.map(({ engine, support, installed, resolution }) => ({
+      engine,
+      support,
+      installed,
+      resolution,
+    })),
+    [{ engine: "mock", support: "supported", installed: true, resolution: "direct" }],
+  );
+});
+
 test("dead workers are detected and repaired", async () => {
   const sandbox = await temporary();
   const home = join(sandbox, "home");

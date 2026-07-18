@@ -1,5 +1,6 @@
 import { getEngine } from "../core/engines/index.js";
 import { startWorker } from "../core/run-service.js";
+import { enginePlatformSupport } from "../core/platform-support.js";
 import type { RunStore } from "../core/run-store.js";
 import { CliError } from "../utils/errors.js";
 import { directory, parseOptions, promptFrom } from "./shared.js";
@@ -12,6 +13,9 @@ export async function spawnCommand(args: string[], store: RunStore): Promise<num
   if (!engineName || !name)
     throw new CliError("usage: sidekick spawn ENGINE NAME [options] -- PROMPT");
   const engine = getEngine(engineName);
+  const support = enginePlatformSupport(engine.name);
+  if (support.level === "unsupported") throw new CliError(support.detail);
+  if (support.level === "beta") process.stderr.write(`sidekick: warning: ${support.detail}\n`);
   const prompt = await promptFrom(promptParts);
   const cwd = await directory(values.dir);
   await store.withLock(name, async () => {

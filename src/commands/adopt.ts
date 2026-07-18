@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { getEngine } from "../core/engines/index.js";
 import { validateAdoptedSession } from "../core/run-service.js";
+import { enginePlatformSupport } from "../core/platform-support.js";
 import type { RunStore } from "../core/run-store.js";
 import { CliError } from "../utils/errors.js";
 import { directory, parseOptions } from "./shared.js";
@@ -20,6 +21,9 @@ export async function adoptCommand(args: string[], store: RunStore): Promise<num
   if (/[\r\n\0]/u.test(values.session))
     throw new CliError("--session must be a non-empty single-line ID");
   const engine = getEngine(engineName);
+  const support = enginePlatformSupport(engine.name);
+  if (support.level === "unsupported") throw new CliError(support.detail);
+  if (support.level === "beta") process.stderr.write(`sidekick: warning: ${support.detail}\n`);
   const cwd = await directory(values.dir);
   const valid = await validateAdoptedSession(engine.name, values.session, cwd);
   if (valid === false) throw new CliError(`${engine.name} session not found: ${values.session}`);

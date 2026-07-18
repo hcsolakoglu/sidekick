@@ -1,5 +1,6 @@
 import { adoptCommand } from "./commands/adopt.js";
 import { cleanCommand } from "./commands/clean.js";
+import { doctorCommand } from "./commands/doctor.js";
 import { resultCommand } from "./commands/result.js";
 import { sendCommand } from "./commands/send.js";
 import { spawnCommand } from "./commands/spawn.js";
@@ -23,6 +24,7 @@ Usage:
   sidekick status [--json]
   sidekick result NAME [--json]
   sidekick clean [NAME ...]
+  sidekick doctor [ENGINE ...] [--json]
 
 Engines: codex, devin, claude, hermes, mock
 
@@ -70,6 +72,8 @@ export async function run(argv: string[], store = new RunStore()): Promise<numbe
         return await resultCommand(args, store);
       case "clean":
         return await cleanCommand(args, store);
+      case "doctor":
+        return await doctorCommand(args, store);
       case "_worker": {
         const [name, turn, action] = args;
         if (!name || !turn || !action || !["spawn", "resume", "fallback"].includes(action))
