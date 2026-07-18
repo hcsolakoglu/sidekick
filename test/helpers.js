@@ -16,12 +16,16 @@ export function runCli(args, options = {}) {
   const inherited = { ...process.env };
   delete inherited.FORCE_COLOR;
   return new Promise((resolvePromise, reject) => {
-    const child = spawn(process.execPath, [cli, ...args], {
-      cwd: options.cwd ?? root,
-      env: { ...inherited, NO_COLOR: "1", CI: "true", ...options.env },
-      windowsHide: true,
-      stdio: ["pipe", "pipe", "pipe"],
-    });
+    const child = spawn(
+      process.execPath,
+      [...(options.require ? ["--require", options.require] : []), cli, ...args],
+      {
+        cwd: options.cwd ?? root,
+        env: { ...inherited, NO_COLOR: "1", CI: "true", ...options.env },
+        windowsHide: true,
+        stdio: ["pipe", "pipe", "pipe"],
+      },
+    );
     const stdout = [];
     const stderr = [];
     child.stdout.on("data", (value) => stdout.push(value));
