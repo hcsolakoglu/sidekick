@@ -10,16 +10,23 @@ export function changeOrDelay(
   delay: number,
   signal: AbortSignal,
   watchPath: typeof watch = watch,
+  platform: NodeJS.Platform = process.platform,
 ): Promise<void> {
   return new Promise((resolve) => {
     let settled = false;
-    const watchers = paths.map((path) => {
-      try {
-        return watchPath(path, { persistent: false }, finish);
-      } catch {
-        return undefined;
-      }
-    });
+    // Node 24 can fast-fail during FSWatcher teardown on Windows after a
+    // force-resend. The wait loop already has bounded polling, so use that
+    // portable path instead of letting a runtime handle crash the CLI.
+    const watchers =
+      platform === "win32"
+        ? []
+        : paths.map((path) => {
+            try {
+              return watchPath(path, { persistent: false }, finish);
+            } catch {
+              return undefined;
+            }
+          });
     const timer = setTimeout(finish, delay);
     signal.addEventListener("abort", finish, { once: true });
     function finish(): void {
