@@ -211,7 +211,11 @@ test("engine stdout streams live and completed logs obey the size cap", async ()
     /mock progress/u,
   );
   await runCli(["wait", "streaming", "--timeout", "5", "--quiet"], { env });
-  assert.ok((await stat(join(home, "runs", "streaming", "out.log"))).size <= 1049);
+  // 0.001 MB, the configured cap. Assert the real limit rather than a padded
+  // one so an overshoot reports the size it actually wrote.
+  const cap = Math.floor(0.001 * 1024 * 1024);
+  const { size } = await stat(join(home, "runs", "streaming", "out.log"));
+  assert.ok(size <= cap, `out.log is ${size} bytes, over the ${cap} byte cap`);
 });
 
 test("completion hook runs after terminal state and receives run metadata", async () => {

@@ -1,0 +1,10 @@
+# Windows checkouts otherwise convert to CRLF, which Prettier rejects because
+# it formats to LF. Normalize in the repository and on checkout everywhere.
+* text=auto eol=lf
+
+# Binary formats must never be line-ending converted.
+*.png binary
+*.jpg binary
+*.gif binary
+*.ico binary
+*.tgz binary

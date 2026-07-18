@@ -160,14 +160,16 @@ export async function executeWorker(
   }
 }
 
+// Callers persist this through RunStore.complete, which appends a trailing
+// newline when one is missing. Reserve room for it so the stored log honours
+// the cap exactly instead of exceeding it by a byte.
 function capText(value: string, maximum: number): string {
   const content = Buffer.from(value, "utf8");
   if (content.length <= maximum) return value;
   const marker = Buffer.from("[sidekick: earlier output truncated]\n", "utf8");
-  return Buffer.concat([
-    marker,
-    content.subarray(content.length - maximum + marker.length),
-  ]).toString("utf8");
+  const kept = content.subarray(content.length - maximum + marker.length + 1);
+  const text = Buffer.concat([marker, kept]).toString("utf8");
+  return text.endsWith("\n") ? text : `${text}\n`;
 }
 
 async function runCompletionHook(
