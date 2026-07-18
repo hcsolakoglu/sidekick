@@ -87,20 +87,22 @@ test("clean removes terminal runs and skips active runs", async () => {
   assert.equal(cleaned.stdout, "removed 1\n");
   assert.match(cleaned.stderr, /skipping running run: active/u);
   const status = JSON.parse((await runCli(["status", "--json"], { env })).stdout);
-  assert.deepEqual(status.runs.map((run) => run.name), ["active"]);
+  assert.deepEqual(
+    status.runs.map((run) => run.name),
+    ["active"],
+  );
   await runCli(["send", "active", "--force", "--", "finish"], { env });
   await runCli(["wait", "active", "--timeout", "5", "--quiet"], { env });
   assert.equal((await runCli(["clean", "active"], { env })).stdout, "removed 1\n");
 });
 
 test("dead workers are detected and repaired", async () => {
-  if (process.platform === "win32") return test.skip("signal semantics differ on Windows");
   const sandbox = await temporary();
   const home = join(sandbox, "home");
   const env = { SIDEKICK_HOME: home, SIDEKICK_MOCK_DELAY_MS: "10000" };
   await runCli(["spawn", "mock", "doomed", "--dir", sandbox, "--", "slow"], { env });
   const pid = await pidFor(home, "doomed");
-  process.kill(pid, "SIGKILL");
+  process.kill(pid, process.platform === "win32" ? undefined : "SIGKILL");
   await new Promise((resolve) => setTimeout(resolve, 100));
   const status = JSON.parse((await runCli(["status", "--json"], { env })).stdout).runs[0];
   assert.equal(status.status, "died");
