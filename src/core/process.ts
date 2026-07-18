@@ -68,19 +68,28 @@ export async function processIdentity(pid: number, token = ""): Promise<string> 
     }
   }
   if (process.platform === "win32") {
-    const script = `$p=Get-CimInstance Win32_Process -Filter \"ProcessId = ${pid}\"; if($p){Write-Output ($p.CreationDate+'|'+$p.CommandLine)}`;
+    // CreationDate is a DateTime under CIM, and DateTime + string throws in
+    // PowerShell, so format it explicitly. A missing process writes nothing,
+    // which must read as "no identity" rather than an empty-but-truthy one.
+    const script =
+      `$p=Get-CimInstance Win32_Process -Filter "ProcessId = ${pid}"; ` +
+      `if($p){Write-Output ("{0}|{1}" -f $p.CreationDate.ToFileTimeUtc(), $p.CommandLine)}`;
     const result = await capture("powershell.exe", [
       "-NoProfile",
       "-NonInteractive",
       "-Command",
       script,
     ]);
-    if (result.code !== 0 || (token && !result.stdout.includes(token))) return "";
-    return `win32|${token}|${result.stdout.trim()}`;
+    const value = result.stdout.trim();
+    if (result.code !== 0 || !value || (token && !value.includes(token))) return "";
+    return `win32|${token}|${value}`;
   }
-  const result = await capture("ps", ["-p", String(pid), "-o", "lstart=", "-o", "command="]);
-  if (result.code !== 0 || (token && !result.stdout.includes(token))) return "";
-  return `${process.platform}|${token}|${result.stdout.trim()}`;
+  // -ww keeps ps from truncating the command to the terminal width, which would
+  // make the identity depend on where it was sampled from.
+  const result = await capture("ps", ["-ww", "-p", String(pid), "-o", "lstart=", "-o", "command="]);
+  const value = result.stdout.trim();
+  if (result.code !== 0 || !value || (token && !value.includes(token))) return "";
+  return `${process.platform}|${token}|${value}`;
 }
 
 export async function processIdentityMatches(

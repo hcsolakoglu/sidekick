@@ -22,6 +22,11 @@ export function maxLogBytes(env: NodeJS.ProcessEnv = process.env): number {
 
 export async function refresh(store: RunStore, record: RunRecord): Promise<RunRecord> {
   if (record.status === "running" && !(await processIdentityMatches(record.pid, record.identity))) {
+    // The status was sampled before the liveness probe, so a worker that
+    // finished in between looks like a dead one. Re-read before condemning it:
+    // a worker that committed a terminal status did record its completion.
+    const current = await store.read(record.meta.name);
+    if (current.status !== "running") return current;
     const turn = store.turnPath(record.meta.name, record.meta.activeRun);
     const message = `${record.output}sidekick: worker process died before recording completion\n`;
     await store.complete(record.meta.name, turn, -1, record.session, message, "died");
