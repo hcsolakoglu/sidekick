@@ -146,6 +146,7 @@ test("wait timeout is 124 and force resend replaces active turn", async () => {
         ["baseExit", join(run, "exit")],
         ["firstStatus", join(run, "run-1", "status")],
         ["firstExit", join(run, "run-1", "exit")],
+        ["firstEnginePid", join(run, "run-1", "engine.pid")],
         ["replacementStatus", join(run, "run-2", "status")],
         ["replacementExit", join(run, "run-2", "exit")],
       ].map(async ([key, path]) => [key, (await readFile(path, "utf8").catch(() => "")).trim()]),

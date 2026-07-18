@@ -124,6 +124,7 @@ export async function executeWorker(
       cwd: record.meta.directory,
       ...(invocation.stdin === undefined ? {} : { stdin: invocation.stdin }),
       maxCaptureBytes: maximum,
+      onSpawn: (pid) => store.atomicWrite(join(turn, "engine.pid"), `${pid}\n`),
       onStdout: async (chunk) => {
         await append(join(turn, "raw.log"), chunk);
         await append(join(store.runPath(name), "out.log"), chunk);

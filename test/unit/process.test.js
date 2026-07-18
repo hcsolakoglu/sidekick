@@ -1,7 +1,24 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { processIdentity, processIdentityMatches, stopProcess } from "../../dist/core/process.js";
+import {
+  processIdentity,
+  processIdentityMatches,
+  runProcess,
+  stopProcess,
+} from "../../dist/core/process.js";
+
+test("process launch reports the child PID", async () => {
+  let spawned = 0;
+  const result = await runProcess(process.execPath, ["-e", ""], {
+    cwd: process.cwd(),
+    onSpawn: (pid) => {
+      spawned = pid;
+    },
+  });
+  assert.equal(result.code, 0);
+  assert.ok(spawned > 0);
+});
 
 test("process identity rejects a reused PID identity", async () => {
   const identity = await processIdentity(process.pid);
