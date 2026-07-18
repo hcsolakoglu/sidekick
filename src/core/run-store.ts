@@ -311,23 +311,32 @@ export class RunStore {
     const base = this.runPath(name);
     const normalized = output && !output.endsWith("\n") ? `${output}\n` : output;
     const meta = await this.readMeta(name);
+    // A turn that has since been replaced (--force resend, cancel) must still
+    // record its own result, but must not publish it as the run's current
+    // state — otherwise a slow dying worker overwrites the turn that replaced
+    // it, and the run reports the killed process's exit code.
+    const current = turn === this.turnPath(name, meta.activeRun);
     await Promise.all([
       this.atomicWrite(join(turn, "out.log"), normalized),
       this.atomicWrite(join(turn, "session"), session ? `${session}\n` : ""),
       this.atomicWrite(join(turn, "exit"), `${exitCode}\n`),
-      this.atomicWrite(join(base, "out.log"), normalized),
-      this.atomicWrite(join(base, "exit"), `${exitCode}\n`),
-      this.atomicWrite(
-        join(base, "meta.json"),
-        `${JSON.stringify({ ...meta, updatedAt: new Date().toISOString() }, null, 2)}\n`,
-      ),
-      ...(session ? [this.atomicWrite(join(base, "session"), `${session}\n`)] : []),
+      ...(current
+        ? [
+            this.atomicWrite(join(base, "out.log"), normalized),
+            this.atomicWrite(join(base, "exit"), `${exitCode}\n`),
+            this.atomicWrite(
+              join(base, "meta.json"),
+              `${JSON.stringify({ ...meta, updatedAt: new Date().toISOString() }, null, 2)}\n`,
+            ),
+            ...(session ? [this.atomicWrite(join(base, "session"), `${session}\n`)] : []),
+          ]
+        : []),
     ]);
     // Status is the commit marker: readers that observe a terminal value must
     // also be able to observe the corresponding output, exit code, and session.
     await Promise.all([
       this.atomicWrite(join(turn, "status"), `${status}\n`),
-      this.atomicWrite(join(base, "status"), `${status}\n`),
+      ...(current ? [this.atomicWrite(join(base, "status"), `${status}\n`)] : []),
     ]);
   }
 

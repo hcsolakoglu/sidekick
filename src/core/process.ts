@@ -108,7 +108,14 @@ export async function stopProcess(pid: number): Promise<void> {
     });
     if (result.code !== 0 && isProcessAlive(pid))
       throw new Error(`taskkill failed for PID ${pid}: ${result.stderr.trim() || result.code}`);
-    return;
+    // taskkill returns before the process has actually exited. Wait it out, as
+    // the POSIX path does, so a caller that replaces the turn cannot have the
+    // dying worker write its own completion over the new one.
+    for (let index = 0; index < 20; index += 1) {
+      if (!isProcessAlive(pid)) return;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    throw new Error(`failed to stop process ${pid}`);
   }
   try {
     process.kill(-pid, "SIGTERM");

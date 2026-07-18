@@ -25,6 +25,26 @@ test("name validation prevents traversal", () => {
   assert.throws(() => validateName("../escape"), /name must match/u);
 });
 
+test("a superseded turn records itself without publishing run state", async () => {
+  const root = await temporary();
+  const store = new RunStore(root);
+  await store.initialize();
+  await store.create(
+    { name: "one", engine: "mock", directory: root, model: "", mode: "" },
+    "first",
+  );
+  const stale = store.turnPath("one", 1);
+  await store.initializeTurn("one", 2, "second", "");
+
+  // The worker killed by --force finishes late and reports its own failure.
+  await store.complete("one", stale, 3221226505, "", "killed output\n", "cancelled");
+
+  const record = await store.read("one");
+  assert.equal(record.status, "running", "replacement turn must stay active");
+  assert.notEqual(record.output, "killed output\n");
+  assert.equal(await store.readText(join(stale, "exit")), "3221226505\n");
+});
+
 test("run metadata and turn state round-trip", async () => {
   const root = await temporary();
   const store = new RunStore(root);

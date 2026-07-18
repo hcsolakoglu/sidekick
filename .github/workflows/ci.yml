@@ -30,11 +30,16 @@ jobs:
       - name: Packed-install smoke test
         shell: pwsh
         run: |
-          # prepack also writes to stdout, so only the last line is the tarball.
-          $tarball = (npm pack --silent | Select-Object -Last 1).Trim()
           $smoke = Join-Path $env:RUNNER_TEMP "sidekick-pack-smoke"
           New-Item -ItemType Directory -Force -Path $smoke | Out-Null
-          npm install --prefix $smoke (Join-Path $PWD $tarball)
+          # prepack writes to stdout as well, so the tarball name cannot be read
+          # from it. Pack into an empty directory and pick the file up instead.
+          $packed = Join-Path $smoke "tarball"
+          New-Item -ItemType Directory -Force -Path $packed | Out-Null
+          npm pack --pack-destination $packed | Out-Null
+          $tarball = Get-ChildItem -Path $packed -Filter *.tgz
+          if ($tarball.Count -ne 1) { throw "expected one tarball, found $($tarball.Count)" }
+          npm install --prefix $smoke $tarball.FullName
           # Invoke the installed shim directly. `npm exec -- sidekick` falls back
           # to downloading the unrelated public `sidekick` package when local
           # resolution misses, which masks failures and runs untrusted code.
