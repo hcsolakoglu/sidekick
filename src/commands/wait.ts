@@ -1,28 +1,42 @@
 import { watch } from "node:fs";
+import type { FSWatcher } from "node:fs";
 import { refresh } from "../core/run-service.js";
 import type { RunRecord, RunStore } from "../core/run-store.js";
 import { CliError } from "../utils/errors.js";
 import { parseOptions } from "./shared.js";
 
-function changeOrDelay(paths: string[], delay: number, signal: AbortSignal): Promise<void> {
+export function changeOrDelay(
+  paths: string[],
+  delay: number,
+  signal: AbortSignal,
+  watchPath: typeof watch = watch,
+): Promise<void> {
   return new Promise((resolve) => {
     let settled = false;
     const watchers = paths.map((path) => {
       try {
-        return watch(path, { persistent: false }, finish);
+        return watchPath(path, { persistent: false }, finish);
       } catch {
         return undefined;
       }
     });
     const timer = setTimeout(finish, delay);
     signal.addEventListener("abort", finish, { once: true });
-    function finish() {
+    function finish(): void {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      for (const watcher of watchers) watcher?.close();
-      resolve();
+      signal.removeEventListener("abort", finish);
+      void Promise.all(watchers.map(closeWatcher)).then(() => resolve());
     }
+  });
+}
+
+function closeWatcher(watcher: FSWatcher | undefined): Promise<void> {
+  if (!watcher) return Promise.resolve();
+  return new Promise((resolve) => {
+    watcher.once("close", resolve);
+    watcher.close();
   });
 }
 

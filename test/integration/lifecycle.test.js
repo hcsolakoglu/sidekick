@@ -134,27 +134,10 @@ test("wait timeout is 124 and force resend replaces active turn", async () => {
   const home = join(sandbox, "home");
   const env = { SIDEKICK_HOME: home, SIDEKICK_MOCK_DELAY_MS: "1000" };
   await runCli(["spawn", "mock", "slow", "--dir", sandbox, "--", "first"], { env });
-  const firstPid = await pidFor(home, "slow");
   assert.equal((await runCli(["wait", "slow", "--timeout", "0.01"], { env })).code, 124);
   assert.equal((await runCli(["send", "slow", "--force", "--", "replacement"], { env })).code, 0);
   const done = await runCli(["wait", "slow", "--timeout", "5", "--json"], { env });
-  const run = join(home, "runs", "slow");
-  const state = Object.fromEntries(
-    await Promise.all(
-      [
-        ["baseStatus", join(run, "status")],
-        ["baseExit", join(run, "exit")],
-        ["firstStatus", join(run, "run-1", "status")],
-        ["firstExit", join(run, "run-1", "exit")],
-        ["firstEnginePid", join(run, "run-1", "engine.pid")],
-        ["replacementStatus", join(run, "run-2", "status")],
-        ["replacementExit", join(run, "run-2", "exit")],
-      ].map(async ([key, path]) => [key, (await readFile(path, "utf8").catch(() => "")).trim()]),
-    ),
-  );
-  state.firstPid = firstPid;
-  state.waitPid = done.pid;
-  assert.equal(done.code, 0, `forced replacement state: ${JSON.stringify(state)}`);
+  assert.equal(done.code, 0);
   assert.match(JSON.parse(done.stdout).output, /replacement/u);
 });
 

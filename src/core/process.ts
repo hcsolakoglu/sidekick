@@ -165,7 +165,6 @@ export function runProcess(
     env?: NodeJS.ProcessEnv;
     onStdout?: (chunk: string) => void | Promise<void>;
     onStderr?: (chunk: string) => void | Promise<void>;
-    onSpawn?: (pid: number) => void | Promise<void>;
     maxCaptureBytes?: number;
   },
 ): Promise<ProcessResult> {
@@ -181,7 +180,6 @@ export function runProcess(
         const stdout = new CappedCapture(options.maxCaptureBytes);
         const stderr = new CappedCapture(options.maxCaptureBytes);
         const pending: Promise<void>[] = [];
-        if (options.onSpawn) pending.push(Promise.resolve(options.onSpawn(child.pid ?? 0)));
         child.stdout.on("data", (chunk: Buffer) => {
           stdout.push(chunk);
           if (options.onStdout)
