@@ -11,10 +11,13 @@ export async function temporary() {
 }
 
 export function runCli(args, options = {}) {
+  // FORCE_COLOR alongside NO_COLOR makes Node emit a warning on stderr, which
+  // breaks output assertions for anyone whose terminal exports it.
+  const { FORCE_COLOR, ...inherited } = process.env;
   return new Promise((resolvePromise, reject) => {
     const child = spawn(process.execPath, [cli, ...args], {
       cwd: options.cwd ?? root,
-      env: { ...process.env, NO_COLOR: "1", CI: "true", ...options.env },
+      env: { ...inherited, NO_COLOR: "1", CI: "true", ...options.env },
       windowsHide: true,
       stdio: ["pipe", "pipe", "pipe"],
     });

@@ -12,7 +12,7 @@ From `src/core/engines/types.ts` and the existing adapters (`codex.ts`,
 
 1. **Headless one-shot invocation** — a non-interactive CLI mode that accepts a
    prompt (argv or stdin) and exits when the turn completes.
-2. **Programmatic session RESUME with context** *(hard requirement)* — a CLI
+2. **Programmatic session RESUME with context** _(hard requirement)_ — a CLI
    flag that takes a session/thread ID and continues that exact conversation
    non-interactively. The adapter round-trips the ID through
    `EngineContext.session` → `EngineResult.session`. **If a candidate has no
@@ -27,34 +27,34 @@ From `src/core/engines/types.ts` and the existing adapters (`codex.ts`,
 
 Each criterion scored 0–5. Weighted total out of **60**.
 
-| Criterion | Weight | Notes |
-| --- | --- | --- |
-| Resume capability | ×3 | 0 → disqualified. 5 = documented `--resume <id>` (or equivalent) verified in arg-parser/docs. |
-| Headless quality | ×2 | Structured JSON/stream output + documented exit codes score 5. |
-| Cross-OS | ×2 | Native Windows (not WSL-only) + macOS + Linux scores 5. |
-| Health/maintenance | ×2 | Backing org, commits in last 90 days, release cadence, open-issue ratio. |
-| Popularity | ×1 | GitHub stars (organic shape, contributor count). |
-| Auth flexibility | ×1 | Subscription/OAuth free tier + API key scores 5; API-key-only (per-token cost) scores 2–3. |
-| Integration effort | ×1 | 5 = near-identical to an existing adapter (Codex/Claude pattern); 1 = bespoke. |
+| Criterion          | Weight | Notes                                                                                         |
+| ------------------ | ------ | --------------------------------------------------------------------------------------------- |
+| Resume capability  | ×3     | 0 → disqualified. 5 = documented `--resume <id>` (or equivalent) verified in arg-parser/docs. |
+| Headless quality   | ×2     | Structured JSON/stream output + documented exit codes score 5.                                |
+| Cross-OS           | ×2     | Native Windows (not WSL-only) + macOS + Linux scores 5.                                       |
+| Health/maintenance | ×2     | Backing org, commits in last 90 days, release cadence, open-issue ratio.                      |
+| Popularity         | ×1     | GitHub stars (organic shape, contributor count).                                              |
+| Auth flexibility   | ×1     | Subscription/OAuth free tier + API key scores 5; API-key-only (per-token cost) scores 2–3.    |
+| Integration effort | ×1     | 5 = near-identical to an existing adapter (Codex/Claude pattern); 1 = bespoke.                |
 
 ## Ranked table
 
-| Rank | Candidate | Weighted /60 | Resume×3 | Headless×2 | Cross-OS×2 | Health×2 | Pop×1 | Auth×1 | Integ×1 | Verdict |
-| ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
-| 1 | **Gemini CLI** | **60** | 15 | 10 | 10 | 10 | 5 | 5 | 5 | Add now |
-| 2 | **Qwen Code** | **59** | 15 | 10 | 10 | 10 | 4 | 4 | 5 | Add now |
-| 3 | **Goose** | **58** | 15 | 10 | 10 | 10 | 5 | 4 | 4 | Add now |
-| 3 | **Cline CLI** | **58** | 15 | 10 | 10 | 10 | 5 | 4 | 4 | Add now |
-| 3 | **Copilot CLI** | **58** | 15 | 10 | 10 | 10 | 4 | 5 | 4 | Add now |
-| 6 | **Crush** | **56** | 15 | 10 | 10 | 10 | 4 | 3 | 4 | Add now |
-| 7 | **OpenCode** | **55** | 15 | 10 | 8 | 10 | 5 | 3 | 4 | Add now |
-| 7 | **Pi** | **55** | 15 | 10 | 8 | 10 | 5 | 3 | 4 | Add now |
-| 9 | Aider | 41 | 6 | 8 | 10 | 8 | 5 | 2 | 2 | Watch |
-| 10 | Continue CLI | 35 | 6 | 8 | 8 | 4 | 4 | 3 | 2 | Disqualified |
-| 11 | Plandex | 33 | 9 | 6 | 8 | 2 | 4 | 2 | 2 | Watch |
-| 12 | OpenHands | 29 | 0 | 4 | 6 | 10 | 5 | 3 | 1 | Disqualified |
-| 13 | Cursor CLI | 23 | 0 | 2 | 6 | 6 | 4 | 4 | 1 | Disqualified |
-| — | Amp (Sourcegraph) | — | — | — | — | — | — | — | — | Disqualified (unverifiable) |
+| Rank | Candidate         | Weighted /60 | Resume×3 | Headless×2 | Cross-OS×2 | Health×2 | Pop×1 | Auth×1 | Integ×1 | Verdict                     |
+| ---: | ----------------- | -----------: | -------: | ---------: | ---------: | -------: | ----: | -----: | ------: | --------------------------- |
+|    1 | **Gemini CLI**    |       **60** |       15 |         10 |         10 |       10 |     5 |      5 |       5 | Add now                     |
+|    2 | **Qwen Code**     |       **59** |       15 |         10 |         10 |       10 |     4 |      4 |       5 | Add now                     |
+|    3 | **Goose**         |       **58** |       15 |         10 |         10 |       10 |     5 |      4 |       4 | Add now                     |
+|    3 | **Cline CLI**     |       **58** |       15 |         10 |         10 |       10 |     5 |      4 |       4 | Add now                     |
+|    3 | **Copilot CLI**   |       **58** |       15 |         10 |         10 |       10 |     4 |      5 |       4 | Add now                     |
+|    6 | **Crush**         |       **56** |       15 |         10 |         10 |       10 |     4 |      3 |       4 | Add now                     |
+|    7 | **OpenCode**      |       **55** |       15 |         10 |          8 |       10 |     5 |      3 |       4 | Add now                     |
+|    7 | **Pi**            |       **55** |       15 |         10 |          8 |       10 |     5 |      3 |       4 | Add now                     |
+|    9 | Aider             |           41 |        6 |          8 |         10 |        8 |     5 |      2 |       2 | Watch                       |
+|   10 | Continue CLI      |           35 |        6 |          8 |          8 |        4 |     4 |      3 |       2 | Disqualified                |
+|   11 | Plandex           |           33 |        9 |          6 |          8 |        2 |     4 |      2 |       2 | Watch                       |
+|   12 | OpenHands         |           29 |        0 |          4 |          6 |       10 |     5 |      3 |       1 | Disqualified                |
+|   13 | Cursor CLI        |           23 |        0 |          2 |          6 |        6 |     4 |      4 |       1 | Disqualified                |
+|    — | Amp (Sourcegraph) |            — |        — |          — |          — |        — |     — |      — |       — | Disqualified (unverifiable) |
 
 > Contributor counts via the GitHub contributors API are capped at the first
 > 100-item page; entries shown as "≥100" are at least that large. "Commits/90d"
@@ -78,9 +78,9 @@ flexibility):**
 2. **Qwen Code** — `qwen -p "..." --output-format stream-json`, resume via
    `--resume <id>` and `--continue`. Fork of Gemini CLI → near-clone adapter.
    Apache-2.0, Alibaba/QwenLM-backed, 26k stars. Auth: DashScope/Qwen API key
-   + OAuth; free tier.
+   - OAuth; free tier.
 3. **Goose** — `goose run --resume --session-id <id> --output-format stream-json
-   "..."` (or `--resume --name <name>`). Apache-2.0, Block-backed, 51k stars,
+"..."` (or `--resume --name <name>`). Apache-2.0, Block-backed, 51k stars,
    native Windows PowerShell install. Auth: Tetrate free tier + API keys.
 4. **Cline CLI** — `cline --id <session-id> --json "..."` (explicit
    "Resume an existing session by ID"); `--yolo`/`--zen` headless, NDJSON
@@ -113,7 +113,7 @@ flexibility):**
 ## Watch later
 
 - **Aider** (47.5k stars, Apache-2.0, Aider-AI) — Has headless (`--message` /
-  `--message-file`, `--yes-always`, `--stream`) and a *partial* resume via
+  `--message-file`, `--yes-always`, `--stream`) and a _partial_ resume via
   `--restore-chat-history`, but that flag is a **boolean that restores only the
   last conversation in the current cwd** — it takes **no session ID**, so
   sidekick cannot round-trip an arbitrary session through `EngineContext.session`.
@@ -129,16 +129,17 @@ flexibility):**
 
 ## Disqualified (no resume / no headless / unverifiable)
 
-| Candidate | Reason |
-| --- | --- |
-| **Continue CLI** | `cn -p "..." --format json` headless exists, and `cn --resume` resumes the last session **for this terminal**, but `--resume` **takes no session ID** — only "resume last". `cn ls --json` lists sessions but there is no documented `--resume <id>` flag. Fails the hard requirement. Additionally the `continuedev/continue` repo is marked **read-only / no longer actively maintained** ("final 2.0.0 release"); only 21 commits in 90d. |
-| **OpenHands** | Server + web-UI first (docker-compose, `openhands-ui`, `app_server`). No terminal-CLI headless mode with session-resume-by-ID; a code search for `headless resume` in the repo returned nothing. Architecture does not match the sidekick engine model (detached local CLI worker). |
-| **Cursor CLI** | `getcursor/cursor` is the **editor application** (33k stars, `language: null`, 31 contributors, last push 2025-05-12). No public headless `cursor-agent` CLI with session resume exists in the repo. The cloud "cursor-agent" is not a locally-resumable CLI harness. |
-| **Amp (Sourcegraph)** | `sourcegraph/amp` and `sourcegraph/cody` both return HTTP 404 on the GitHub API. Amp is distributed as a **closed-source signed binary** from sourcegraph.com with no public repo or CLI reference. The hard requirement (resume-by-ID) **cannot be verified from primary sources**, so it is disqualified under this rubric's no-hype rule. Re-evaluate if Sourcegraph publishes a public CLI reference documenting `--resume <id>`. |
+| Candidate             | Reason                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Continue CLI**      | `cn -p "..." --format json` headless exists, and `cn --resume` resumes the last session **for this terminal**, but `--resume` **takes no session ID** — only "resume last". `cn ls --json` lists sessions but there is no documented `--resume <id>` flag. Fails the hard requirement. Additionally the `continuedev/continue` repo is marked **read-only / no longer actively maintained** ("final 2.0.0 release"); only 21 commits in 90d. |
+| **OpenHands**         | Server + web-UI first (docker-compose, `openhands-ui`, `app_server`). No terminal-CLI headless mode with session-resume-by-ID; a code search for `headless resume` in the repo returned nothing. Architecture does not match the sidekick engine model (detached local CLI worker).                                                                                                                                                          |
+| **Cursor CLI**        | `getcursor/cursor` is the **editor application** (33k stars, `language: null`, 31 contributors, last push 2025-05-12). No public headless `cursor-agent` CLI with session resume exists in the repo. The cloud "cursor-agent" is not a locally-resumable CLI harness.                                                                                                                                                                        |
+| **Amp (Sourcegraph)** | `sourcegraph/amp` and `sourcegraph/cody` both return HTTP 404 on the GitHub API. Amp is distributed as a **closed-source signed binary** from sourcegraph.com with no public repo or CLI reference. The hard requirement (resume-by-ID) **cannot be verified from primary sources**, so it is disqualified under this rubric's no-hype rule. Re-evaluate if Sourcegraph publishes a public CLI reference documenting `--resume <id>`.        |
 
 ## Per-candidate evidence
 
 ### Gemini CLI — `google-gemini/gemini-cli`
+
 - Stars 106,057 · forks 14,277 · contributors ≥100 · license Apache-2.0 ·
   426 commits in last 90d · pushed 2026-07-18.
 - Headless: `-p`/`--prompt` forces non-interactive (also auto-triggered in
@@ -156,6 +157,7 @@ flexibility):**
   https://www.geminicli.com/docs/cli/checkpointing
 
 ### Qwen Code — `QwenLM/qwen-code`
+
 - Stars 26,093 · forks 2,666 · contributors ≥100 · license Apache-2.0 ·
   600+ commits in last 90d · pushed 2026-07-18.
 - Fork of Gemini CLI; inherits `-p`, `--output-format json|stream-json`,
@@ -167,6 +169,7 @@ flexibility):**
   https://qwenlm.github.io/qwen-code-docs/en/users/features/headless
 
 ### Goose — `block/goose`
+
 - Stars 51,260 · forks 5,614 · contributors ≥100 · license Apache-2.0 ·
   600+ commits in last 90d · pushed 2026-07-18.
 - Headless: `goose run` (non-interactive), `--output-format text|json|stream-json`,
@@ -182,6 +185,7 @@ flexibility):**
   https://github.com/block/goose/blob/main/crates/goose-cli/src/cli.rs
 
 ### Cline CLI — `cline/cline` (`apps/cli`)
+
 - Stars 64,767 · forks 6,928 · contributors ≥100 · license Apache-2.0 ·
   600+ commits in last 90d · pushed 2026-07-18.
 - Headless: one-shot `cline "prompt"`, `--json` NDJSON stream, `--yolo`
@@ -199,8 +203,9 @@ flexibility):**
   https://github.com/cline/cline/blob/main/apps/cli/src/commands/program.ts
 
 ### Copilot CLI — `github/copilot-cli`
+
 - Stars 10,978 · forks 1,791 · contributors 21 · license NOASSERTION (see
-  `LICENSE.md`) · 37 commits in last 90d on the *installer repo* · pushed
+  `LICENSE.md`) · 37 commits in last 90d on the _installer repo_ · pushed
   2026-07-17. (The binary itself is closed-source and shipped on its own
   cadence; the repo's `changelog.md` shows frequent product updates.)
 - Headless: `-p`/`--prompt` for programmatic use; `--stream` on/off; `--autopilot`
@@ -217,6 +222,7 @@ flexibility):**
   https://docs.github.com/copilot/concepts/agents/copilot-cli/about-copilot-cli
 
 ### Crush — `charmbracelet/crush`
+
 - Stars 26,621 · forks 2,027 · contributors ≥100 · license NOASSERTION (see
   `LICENSE.md`) · 600+ commits in last 90d · pushed 2026-07-18.
 - Headless: `crush run [prompt...]` — "Run a single non-interactive prompt"
@@ -232,6 +238,7 @@ flexibility):**
   https://github.com/charmbracelet/crush/blob/main/internal/cmd/run.go
 
 ### OpenCode — `sst/opencode`
+
 - Stars 187,189 · forks 23,502 · contributors ≥100 · license MIT ·
   600+ commits in last 90d · pushed 2026-07-18. (Highest star count of any
   candidate.)
@@ -249,6 +256,7 @@ flexibility):**
   https://github.com/sst/opencode/blob/dev/packages/opencode/src/cli/cmd/run.ts
 
 ### Pi — `earendil-works/pi`
+
 - Stars 72,372 · forks 8,936 · contributors ≥100 · license MIT ·
   600+ commits in last 90d · pushed 2026-07-17 · created 2025-08-09
   (~72k stars in ~11 months — verify organic shape before relying on it).
@@ -263,6 +271,7 @@ flexibility):**
   https://github.com/earendil-works/pi/blob/main/packages/coding-agent/src/cli/args.ts
 
 ### Aider — `Aider-AI/aider` (Watch)
+
 - Stars 47,492 · forks 4,742 · contributors ≥100 · license Apache-2.0 ·
   17 commits in last 90d on default branch · pushed 2026-05-22.
 - Headless: `--message`/`--message-file`, `--yes-always`, `--stream`.
@@ -278,6 +287,7 @@ flexibility):**
   https://aider.chat/docs/usage/headless.html
 
 ### Continue CLI — `continuedev/continue` (`extensions/cli`) (Disqualified)
+
 - Stars 34,959 · forks 5,072 · contributors ≥100 · license Apache-2.0 ·
   21 commits in last 90d · last commit 2026-06-19.
 - Headless: `cn -p "..." --format json`; `FORCE_NO_TTY` for automation.
@@ -291,6 +301,7 @@ flexibility):**
   https://github.com/continuedev/continue/blob/main/extensions/cli/README.md
 
 ### Plandex — `plandex-ai/plandex` (Watch)
+
 - Stars 15,535 · forks 1,164 · contributors 22 · license MIT ·
   **0 commits in last 90d** · last push 2025-10-03 · last release
   `cli/v2.2.1` 2025-07-16.
@@ -304,6 +315,7 @@ flexibility):**
   https://github.com/plandex-ai/plandex/blob/main/docs/docs/cli-reference.md
 
 ### OpenHands — `All-Hands-AI/OpenHands` (Disqualified)
+
 - Stars 81,203 · forks 10,379 · contributors ≥100 · license NOASSERTION ·
   600+ commits in last 90d · pushed 2026-07-18. (Very healthy project, but
   wrong shape for sidekick.)
@@ -314,12 +326,14 @@ flexibility):**
 - Evidence: https://github.com/All-Hands-AI/OpenHands
 
 ### Cursor CLI — `getcursor/cursor` (Disqualified)
+
 - Stars 33,049 · forks 2,269 · contributors 31 · last push 2025-05-12.
 - The repo is the **Cursor editor application** (`language: null`, no CLI
   harness source). No public headless `cursor-agent` CLI with session resume.
 - Evidence: https://github.com/getcursor/cursor
 
 ### Amp (Sourcegraph) (Disqualified — unverifiable)
+
 - `sourcegraph/amp` and `sourcegraph/cody` both return HTTP 404 on the GitHub
   API (no public repo). Amp is a closed-source signed binary distributed from
   sourcegraph.com. The resume-by-ID hard requirement **cannot be verified from
