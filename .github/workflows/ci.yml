@@ -26,14 +26,6 @@ jobs:
       - run: npm run typecheck
       - run: npm run format:check
       - run: npm test
-      - name: Diagnose Windows Node 24 without Maglev
-        if: failure() && runner.os == 'Windows' && matrix.node == 24
-        env:
-          SIDEKICK_TEST_NO_MAGLEV: "1"
-        run: >-
-          node --test --test-name-pattern
-          "wait timeout is 124 and force resend replaces active turn"
-          test/integration/lifecycle.test.js
       - run: npm run surface:check
       - name: Packed-install smoke test
         shell: pwsh
