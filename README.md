@@ -13,6 +13,47 @@ sidekick --version
 
 For development, clone the repository and run `npm ci && npm run build && npm link`.
 
+### Install the agent skill
+
+The npm package includes harness-specific instructions for the four directly supported engines. Install them after installing Sidekick:
+
+```sh
+sidekick skill install codex
+sidekick skill install claude-code
+sidekick skill install devin
+sidekick skill install hermes
+```
+
+Install only the harness you use. Sidekick refuses to overwrite a different standalone skill unless you explicitly pass `--force`.
+
+For Codex, Claude Code, Cursor, Gemini CLI, GitHub Copilot, Devin, Hermes, and other compatible coding harnesses, Vercel's open [`skills` CLI](https://github.com/vercel-labs/skills) can discover and install the portable skill directly from this repository:
+
+```sh
+npx skills add hcsolakoglu/sidekick --skill sidekick
+```
+
+That command installs at project scope by default and interactively selects detected harnesses. To make Sidekick guidance available globally to every harness that supports global skill installation, without prompts:
+
+```sh
+npx skills add hcsolakoglu/sidekick \
+  --skill sidekick \
+  -g \
+  --agent '*' \
+  -y
+```
+
+The default symlink mode keeps one canonical skill and links supported harness directories to it, avoiding independent duplicate copies. Do not add `--copy` unless symlinks are unavailable. Verify discovery with `npx skills list -g`. Invoke the installed skill explicitly with a prompt such as:
+
+```text
+Use $sidekick to delegate a bounded repository audit, wait without busy-polling, and verify the result.
+```
+
+#### Copy-paste setup prompt for an AI coding agent
+
+```text
+Install and verify Sidekick for all coding-agent harnesses on this machine that support global skill installation. First check that Node.js 20 or newer and npm are available. If sidekick is missing or outdated, run npm install --global @hcsolakoglu/sidekick; do not use sudo and do not change my npm prefix or other npm configuration. Run sidekick --version and sidekick doctor --json. Install one canonical portable skill globally and symlink every globally supported harness to it with: npx skills add hcsolakoglu/sidekick --skill sidekick -g --agent '*' -y. Report project-only harnesses that skip global installation, but do not create manual copies and do not use --copy. Verify installations with npx skills list -g and confirm the harness links resolve to the same canonical Sidekick skill. Then run a deterministic smoke lifecycle with the bundled mock engine using a unique run name: spawn it, wait for completion, inspect the JSON result, and clean only that completed smoke run. Never expose credentials or environment secrets. If permissions, network access, symlink support, or an unsupported harness blocks setup, stop and report the exact failure plus the safest manual command. Report the Sidekick version, doctor results, canonical skill location, linked and skipped harnesses, smoke result, and any remaining action.
+```
+
 ## Quick start
 
 ```sh
@@ -70,6 +111,8 @@ sidekick status --json
 sidekick clean --older-than 7d --keep-last 10
 sidekick skill install claude-code
 ```
+
+For concurrent workers, use a different working directory for each run. Harness session discovery and workspace state can be directory-scoped, so workers sharing the same `--dir` may contend, serialize, or overwrite each other's edits. Use separate git worktrees for real parallelism. If workers must share one working tree, serialize the tasks and continue the existing run with `sidekick send`.
 
 When standard input is not a terminal and `CI` is not `true`, a prompt may come from stdin:
 

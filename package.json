@@ -11,7 +11,9 @@
     "bin",
     "README.md",
     "LICENSE",
-    "docs",
+    "docs/cli-surface.json",
+    "docs/harness-limits.md",
+    "docs/tested-versions.json",
     "skills"
   ],
   "engines": {

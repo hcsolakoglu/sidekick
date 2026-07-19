@@ -12,6 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Cross-platform command-resolver and native Windows process-handling tests.
 - Identity-safe worker liveness, `cancel`, completion hooks, retention cleanup, bounded live logs, per-engine concurrency caps, and JSON lifecycle commands.
 - Cross-harness Sidekick skill pack and `sidekick skill install`.
+- Portable skill metadata plus universal `npx skills` installation and agent-setup guidance.
 - Canonical contributor governance, an executable mock lifecycle smoke check, CLI surface drift enforcement, and weekly harness compatibility monitoring.
 
 ### Changed
@@ -22,6 +23,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Engine state discovery honors Codex, Claude Code, and Hermes home overrides.
 - Codex and Claude prompts use stdin, Devin uses prompt files, and verified harness limits are documented.
 - CI enforces formatting and validates the packed mock roundtrip result.
+- Published package contents exclude internal engine-candidate research while retaining public CLI and harness documentation.
+- Skill guidance prevents same-directory workers from contending or overlapping by requiring separate worktrees or serialized session reuse.
 
 ## [0.1.0] - 2026-07-18
 
