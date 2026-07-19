@@ -15,4 +15,6 @@ Use `sidekick adopt ENGINE NAME --session ID --dir PATH` for an existing session
 
 Choose an engine by task and local availability: use Codex or Claude for focused repository work, Devin for broad autonomous implementation, Hermes for general tool-rich work, and mock only for deterministic workflow tests. Split independent tasks; keep tightly coupled edits with one worker. Give every delegate an exact scope, constraints, verification command, and expected response.
 
+Do not concurrently spawn workers with the same `--dir`: harness session discovery and workspace state can be directory-scoped, causing contention, accidental serialization, or overlapping edits. For real parallelism, create a separate git worktree for each worker and pass its path through `--dir`. If the tasks must share one working tree, serialize them and reuse the existing run with `sidekick send`.
+
 Prompt transport is handled by Sidekick: Codex and Claude use stdin, Devin uses `--prompt-file`, and Hermes currently uses argv. Hermes prompts near 32 KB are unsafe on native Windows; prefer WSL or another engine there. See `sidekick doctor hermes`.

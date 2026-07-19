@@ -1,0 +1,4 @@
+interface:
+  display_name: "Sidekick"
+  short_description: "Orchestrate persistent local agent workers"
+  default_prompt: "Use $sidekick to delegate a bounded repository task and verify the result."
