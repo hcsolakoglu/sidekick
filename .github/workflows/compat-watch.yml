@@ -14,8 +14,8 @@ jobs:
     outputs:
       needs_issue: ${{ steps.decision.outputs.needs_issue }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -30,7 +30,7 @@ jobs:
         name: Record whether follow-up is required
         run: node -e "const r=require('./compat-report.json');require('node:fs').appendFileSync(process.env.GITHUB_OUTPUT,'needs_issue='+r.needsIssue+'\n')"
       - if: steps.decision.outputs.needs_issue == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: harness-compat-report
           path: |
@@ -46,7 +46,7 @@ jobs:
       contents: read
       issues: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: harness-compat-report
       - name: Open an idempotent compatibility issue
