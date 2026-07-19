@@ -11,16 +11,22 @@ export function changeOrDelay(
   delay: number,
   signal: AbortSignal,
   watchPath: typeof watch = watch,
+  platform: NodeJS.Platform = process.platform,
 ): Promise<void> {
   return new Promise((resolve) => {
     let settled = false;
-    const watchers = paths.map((path) => {
-      try {
-        return watchPath(path, { persistent: false }, finish);
-      } catch {
-        return undefined;
-      }
-    });
+    // FSWatcher teardown is timing-sensitive on Windows Node 24 and can
+    // native-fast-fail during force-resend. The bounded timer is sufficient.
+    const watchers =
+      platform === "win32"
+        ? []
+        : paths.map((path) => {
+            try {
+              return watchPath(path, { persistent: false }, finish);
+            } catch {
+              return undefined;
+            }
+          });
     const timer = setTimeout(finish, delay);
     signal.addEventListener("abort", finish, { once: true });
     function finish(): void {
