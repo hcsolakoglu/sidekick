@@ -7,6 +7,9 @@ updates:
     groups:
       minor-and-patch:
         update-types: [minor, patch]
+      eslint-major:
+        patterns: [eslint, "@eslint/js"]
+        update-types: [major]
   - package-ecosystem: github-actions
     directory: /
     schedule:
@@ -14,3 +17,5 @@ updates:
     groups:
       minor-and-patch:
         update-types: [minor, patch]
+      major:
+        update-types: [major]
