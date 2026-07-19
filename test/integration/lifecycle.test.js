@@ -4,6 +4,16 @@ import { join } from "node:path";
 import { readFile, stat } from "node:fs/promises";
 import { pidFor, root, runCli, temporary } from "../helpers.js";
 
+async function waitForFileMatch(path, pattern, timeoutMs = 2_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const value = await readFile(path, "utf8").catch(() => "");
+    if (pattern.test(value)) return;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  assert.match(await readFile(path, "utf8").catch(() => ""), pattern);
+}
+
 test("spawn wait result and send resume persist a session", async () => {
   const sandbox = await temporary();
   const home = join(sandbox, "home");
@@ -30,7 +40,7 @@ test("spawn wait result and send resume persist a session", async () => {
 
 test("wait --all reports every selected run", async () => {
   const sandbox = await temporary();
-  const env = { SIDEKICK_HOME: join(sandbox, "home"), SIDEKICK_MOCK_DELAY_MS: "30" };
+  const env = { SIDEKICK_HOME: join(sandbox, "home"), SIDEKICK_MOCK_DELAY_MS: "2000" };
   await Promise.all([
     runCli(["spawn", "mock", "one", "--dir", sandbox, "--", "first"], { env }),
     runCli(["spawn", "mock", "two", "--dir", sandbox, "--", "second"], { env }),
@@ -207,11 +217,7 @@ test("engine stdout streams live and completed logs obey the size cap", async ()
     SIDEKICK_MAX_LOG_MB: "0.001",
   };
   await runCli(["spawn", "mock", "streaming", "--dir", sandbox, "--", "hello"], { env });
-  await new Promise((resolve) => setTimeout(resolve, 150));
-  assert.match(
-    await readFile(join(home, "runs", "streaming", "out.log"), "utf8"),
-    /mock progress/u,
-  );
+  await waitForFileMatch(join(home, "runs", "streaming", "out.log"), /mock progress/u);
   await runCli(["wait", "streaming", "--timeout", "5", "--quiet"], { env });
   // 0.001 MB, the configured cap. Assert the real limit rather than a padded
   // one so an overshoot reports the size it actually wrote.
