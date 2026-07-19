@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "checkedAt": "2026-07-18",
+  "checkedAt": "2026-07-19",
   "harnesses": {
     "codex-cli": {
-      "testedVersion": "0.144.4",
+      "testedVersion": "0.144.6",
       "adapter": "src/core/engines/codex.ts",
       "latestStableSource": {
         "kind": "npm",
@@ -23,7 +23,7 @@
       }
     },
     "claude": {
-      "testedVersion": "2.1.214",
+      "testedVersion": "2.1.215",
       "adapter": "src/core/engines/claude.ts",
       "latestStableSource": {
         "kind": "github-release",
