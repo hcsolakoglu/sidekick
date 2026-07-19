@@ -80,7 +80,7 @@ test("adopt creates a completed resumable run", async () => {
 
 test("clean removes terminal runs and skips active runs", async () => {
   const sandbox = await temporary();
-  const env = { SIDEKICK_HOME: join(sandbox, "home"), SIDEKICK_MOCK_DELAY_MS: "1000" };
+  const env = { SIDEKICK_HOME: join(sandbox, "home"), SIDEKICK_MOCK_DELAY_MS: "10000" };
   await runCli(["adopt", "mock", "finished", "--session", "done-1", "--dir", sandbox], { env });
   await runCli(["spawn", "mock", "active", "--dir", sandbox, "--", "working"], { env });
   const cleaned = await runCli(["clean", "finished", "active"], { env });
@@ -91,6 +91,7 @@ test("clean removes terminal runs and skips active runs", async () => {
     status.runs.map((run) => run.name),
     ["active"],
   );
+  env.SIDEKICK_MOCK_DELAY_MS = "20";
   await runCli(["send", "active", "--force", "--", "finish"], { env });
   await runCli(["wait", "active", "--timeout", "5", "--quiet"], { env });
   assert.equal((await runCli(["clean", "active"], { env })).stdout, "removed 1\n");
