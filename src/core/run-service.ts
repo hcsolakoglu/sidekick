@@ -24,17 +24,22 @@ export async function refresh(
   store: RunStore,
   record: RunRecord,
   identityMatches: typeof processIdentityMatches = processIdentityMatches,
+  lockDeathCommit = true,
 ): Promise<RunRecord> {
   if (record.status === "running" && !(await identityMatches(record.pid, record.identity))) {
-    // The status was sampled before the liveness probe, so a worker that
-    // finished in between looks like a dead one. Re-read before condemning it:
-    // a worker that committed a terminal status did record its completion.
-    const current = await store.read(record.meta.name);
-    if (current.status !== "running") return current;
-    const turn = store.turnPath(record.meta.name, record.meta.activeRun);
-    const message = `${record.output}sidekick: worker process died before recording completion\n`;
-    await store.complete(record.meta.name, turn, -1, record.session, message, "died");
-    return store.read(record.meta.name);
+    const markDead = async (): Promise<RunRecord> => {
+      // The status was sampled before the liveness probe, so a worker that
+      // finished in between looks like a dead one. Re-read and probe again
+      // while holding the run lock before condemning it.
+      const current = await store.read(record.meta.name);
+      if (current.status !== "running") return current;
+      if (await identityMatches(current.pid, current.identity)) return current;
+      const turn = store.turnPath(record.meta.name, current.meta.activeRun);
+      const message = `${current.output}sidekick: worker process died before recording completion\n`;
+      await store.complete(record.meta.name, turn, -1, current.session, message, "died");
+      return store.read(record.meta.name);
+    };
+    return lockDeathCommit ? store.withLock(record.meta.name, markDead) : markDead();
   }
   return record;
 }
@@ -61,10 +66,13 @@ export async function withEngineSlot<T>(
       `SIDEKICK_MAX_CONCURRENT_${engine.toUpperCase()} must be a positive integer`,
     );
   return store.withLock(`capacity-${engine}`, async () => {
-    const records = await Promise.all((await store.list()).map((record) => refresh(store, record)));
-    const running = records.filter(
+    const candidates = (await store.listSummaries()).filter(
       (record) => record.meta.engine === engine && record.status === "running",
-    ).length;
+    );
+    const live = await Promise.all(
+      candidates.map((record) => processIdentityMatches(record.pid, record.identity)),
+    );
+    const running = live.filter(Boolean).length;
     if (running >= limit)
       throw new CliError(`${engine} concurrency limit reached (${running}/${limit})`, 1);
     return callback();
@@ -143,7 +151,9 @@ export async function executeWorker(
     const output = result.stderr.trim()
       ? `${parsed.output.trimEnd()}\n\n[stderr]\n${result.stderr.trimEnd()}\n`
       : parsed.output;
-    await store.complete(name, turn, result.code, parsed.session, capText(output, maximum));
+    await store.withLock(name, () =>
+      store.complete(name, turn, result.code, parsed.session, capText(output, maximum)),
+    );
     return result.code;
   };
   try {
@@ -162,7 +172,7 @@ export async function executeWorker(
       code === 127
         ? `sidekick: executable not found: ${invocation.command}\n`
         : `sidekick worker error: ${error instanceof Error ? error.message : String(error)}\n`;
-    await store.complete(name, turn, code, record.session, message);
+    await store.withLock(name, () => store.complete(name, turn, code, record.session, message));
     return code;
   } finally {
     await runCompletionHook(store, record, turn, maximum);

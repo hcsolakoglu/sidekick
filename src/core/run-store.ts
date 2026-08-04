@@ -1,6 +1,7 @@
 import { constants } from "node:fs";
 import {
   access,
+  lstat,
   mkdir,
   readFile,
   readdir,
@@ -39,6 +40,15 @@ export interface RunRecord {
   output: string;
   pid: number | null;
   identity: string;
+}
+export type RunStoreSkipReason = "no-meta" | "corrupt-meta" | "unreadable";
+export interface RunStoreSkipped {
+  name: string;
+  reason: RunStoreSkipReason;
+}
+export interface RunStoreScan {
+  records: RunRecord[];
+  skipped: RunStoreSkipped[];
 }
 
 const NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/u;
@@ -139,21 +149,34 @@ export class RunStore {
         const code = (error as NodeJS.ErrnoException).code;
         if (code !== "EEXIST") throw error;
         try {
-          const raw = (await readFile(join(lockPath, "owner"), "utf8")).trim();
-          const legacyPid = Number(raw);
-          const owner = Number.isInteger(legacyPid)
-            ? { pid: legacyPid, identity: "" }
-            : (JSON.parse(raw) as { pid: number; identity: string });
-          const ownerAlive = owner.identity
-            ? await processIdentityMatches(owner.pid, owner.identity)
-            : owner.pid > 0 && isPidAlive(owner.pid);
-          const info = await stat(lockPath);
-          if (
-            (!ownerAlive && owner.pid > 0) ||
-            (!owner.pid && Date.now() - info.mtimeMs > 30_000)
-          ) {
-            await rm(lockPath, { recursive: true, force: true });
-            continue;
+          const lockInfo = await lstat(lockPath);
+          if (!lockInfo.isDirectory()) {
+            const raw = (await readFile(lockPath, "utf8")).trim();
+            const legacyPid = Number(raw);
+            const ownerAlive =
+              Number.isInteger(legacyPid) && legacyPid > 0 ? isPidAlive(legacyPid) : false;
+            const stale = Date.now() - lockInfo.mtimeMs > 30_000;
+            if ((Number.isInteger(legacyPid) && legacyPid > 0 && !ownerAlive) || (stale && !raw)) {
+              await unlink(lockPath).catch(() => undefined);
+              continue;
+            }
+          } else {
+            const raw = (await readFile(join(lockPath, "owner"), "utf8")).trim();
+            const legacyPid = Number(raw);
+            const owner = Number.isInteger(legacyPid)
+              ? { pid: legacyPid, identity: "" }
+              : (JSON.parse(raw) as { pid: number; identity: string });
+            const ownerAlive = owner.identity
+              ? await processIdentityMatches(owner.pid, owner.identity)
+              : owner.pid > 0 && isPidAlive(owner.pid);
+            const info = await stat(lockPath);
+            if (
+              (!ownerAlive && owner.pid > 0) ||
+              (!owner.pid && Date.now() - info.mtimeMs > 30_000)
+            ) {
+              await rm(lockPath, { recursive: true, force: true });
+              continue;
+            }
           }
         } catch {
           /* lock owner may still be writing its marker */
@@ -217,26 +240,44 @@ export class RunStore {
     const raw = await this.readText(join(this.runPath(name), "meta.json"));
     if (!raw) throw new CliError(`unknown run: ${name}`);
     try {
-      return JSON.parse(raw) as RunMeta;
+      const parsed: unknown = JSON.parse(raw);
+      if (!isRunMeta(parsed, name)) throw new Error("schema mismatch");
+      return parsed;
     } catch {
       throw new CliError(`corrupt metadata for run: ${name}`, 1);
     }
   }
 
   async read(name: string): Promise<RunRecord> {
+    return this.readRecord(name, true);
+  }
+
+  /** Read state needed for summaries without loading potentially large logs. */
+  async readSummary(name: string): Promise<RunRecord> {
+    return this.readRecord(name, false);
+  }
+
+  private async readRecord(name: string, includeOutput: boolean): Promise<RunRecord> {
     const base = this.runPath(name);
     const meta = await this.readMeta(name);
+    try {
+      await access(join(base, "status"), constants.F_OK);
+    } catch {
+      throw new CliError(`unreadable run state: ${name}`, 1);
+    }
     const [status, exit, session, output, pid, identity] = await Promise.all([
       this.readText(join(base, "status")),
       this.readText(join(base, "exit")),
       this.readText(join(base, "session")),
-      this.readText(join(base, "out.log")),
+      includeOutput ? this.readText(join(base, "out.log")) : Promise.resolve(""),
       this.readText(join(base, "pid")),
       this.readText(join(base, "identity")),
     ]);
+    const normalizedStatus = status.trim();
+    if (!normalizedStatus) throw new CliError(`unreadable run state: ${name}`, 1);
     return {
       meta,
-      status: (status.trim() || "died") as RunStatus,
+      status: normalizedStatus as RunStatus,
       exitCode: /^-?\d+$/u.test(exit.trim()) ? Number(exit.trim()) : null,
       session: session.trim(),
       output,
@@ -246,21 +287,74 @@ export class RunStore {
   }
 
   async list(): Promise<RunRecord[]> {
-    let entries: string[] = [];
+    return (await this.scan(true)).records;
+  }
+
+  async listSummaries(): Promise<RunRecord[]> {
+    return (await this.scan(false)).records;
+  }
+
+  async scanSummaries(): Promise<RunStoreScan> {
+    return this.scan(false);
+  }
+
+  private async scan(includeOutput: boolean): Promise<RunStoreScan> {
+    let entries: Array<{ name: string; isDirectory(): boolean }> = [];
     try {
-      entries = await readdir(this.runs);
+      entries = await readdir(this.runs, { withFileTypes: true });
     } catch {
-      return [];
+      return { records: [], skipped: [] };
     }
     const records: RunRecord[] = [];
-    for (const name of entries.sort()) {
+    const skipped: RunStoreSkipped[] = [];
+    for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
+      const name = entry.name;
+      let isDirectory = entry.isDirectory();
+      if (!isDirectory) {
+        try {
+          isDirectory = (await lstat(join(this.runs, name))).isDirectory();
+        } catch {
+          continue;
+        }
+      }
+      if (!isDirectory) continue;
+      let base: string;
       try {
-        records.push(await this.read(name));
+        base = this.runPath(name);
       } catch {
-        /* skip non-run entries */
+        skipped.push({ name, reason: "unreadable" });
+        continue;
+      }
+      let hasMeta = false;
+      try {
+        await access(join(base, "meta.json"), constants.F_OK);
+        hasMeta = true;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+          skipped.push({ name, reason: "unreadable" });
+          continue;
+        }
+      }
+      if (hasMeta) {
+        try {
+          records.push(await this.readRecord(name, includeOutput));
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          skipped.push({
+            name,
+            reason: message.startsWith("corrupt metadata") ? "corrupt-meta" : "unreadable",
+          });
+        }
+        continue;
+      }
+      try {
+        await access(base, constants.F_OK);
+        skipped.push({ name, reason: "no-meta" });
+      } catch {
+        // The run was removed between readdir and the metadata check.
       }
     }
-    return records;
+    return { records, skipped };
   }
 
   async nextTurn(name: string): Promise<number> {
@@ -352,4 +446,25 @@ function isPidAlive(pid: number): boolean {
   } catch {
     return false;
   }
+}
+
+function isRunMeta(value: unknown, name: string): value is RunMeta {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const meta = value as Record<string, unknown>;
+  return (
+    meta.schemaVersion === 1 &&
+    meta.name === name &&
+    typeof meta.engine === "string" &&
+    meta.engine.length > 0 &&
+    typeof meta.directory === "string" &&
+    typeof meta.model === "string" &&
+    typeof meta.mode === "string" &&
+    Number.isSafeInteger(meta.activeRun) &&
+    Number(meta.activeRun) > 0 &&
+    typeof meta.createdAt === "string" &&
+    Number.isFinite(Date.parse(meta.createdAt)) &&
+    typeof meta.updatedAt === "string" &&
+    Number.isFinite(Date.parse(meta.updatedAt)) &&
+    (meta.onComplete === undefined || typeof meta.onComplete === "string")
+  );
 }

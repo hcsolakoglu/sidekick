@@ -96,7 +96,7 @@ export async function waitCommand(
     if (missing.length) throw new CliError(`unknown run(s): ${missing.join(", ")}`);
     records = await Promise.all(positionals.map((name) => store.read(name)));
   } else {
-    records = (await store.list()).filter((record) => record.status === "running");
+    records = (await store.listSummaries()).filter((record) => record.status === "running");
     if (!records.length) throw new CliError("no running runs");
   }
   const deadline = timeout === undefined ? Infinity : Date.now() + timeout * 1000;

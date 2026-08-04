@@ -78,9 +78,10 @@ sidekick send NAME [--force] [--json] -- PROMPT
 sidekick wait [NAME ...] [--all] [--timeout SECONDS] [--quiet] [--json]
 sidekick adopt ENGINE NAME --session ID [--dir PATH] [--model MODEL] [--mode MODE] [--json]
 sidekick tail NAME [-n LINES]
-sidekick status [--json]
+sidekick status [--all] [--limit N] [--running] [--json]
 sidekick result NAME [--json]
-sidekick clean [NAME ...] [--older-than DUR] [--keep-last N] [--json]
+sidekick clean [NAME ...] [--older-than DUR] [--keep-last N] [--dry-run] [--json]
+sidekick migrate [NAME ...] [--apply] [--dry-run] [--quarantine] [--restore] [--json]
 sidekick cancel NAME [--json]
 sidekick doctor [ENGINE ...] [--json]
 sidekick skill install HARNESS [--force] [--json]
@@ -91,8 +92,9 @@ sidekick skill install HARNESS [--force] [--json]
 - `wait` uses filesystem events with periodic liveness checks. It returns after the first selected run unless `--all` is supplied. With no names, it selects all currently running runs.
 - `adopt` records an existing engine session without starting it.
 - `tail` follows the current output using Node filesystem APIs on every supported OS.
-- `status` lists all runs; `result` prints one run's current output.
-- `clean` deletes terminal runs and skips running ones. Retain recent runs with `--older-than 7d` and/or `--keep-last 10`.
+- `status` shows every running run plus the 20 newest terminal runs by default. Use `--limit N` to change the terminal history window, `--running` for active runs only, or `--all` for complete managed history. JSON includes top-level `total`, `shown`, `truncated`, and `skipped`; each returned run includes its own `updatedAt` value.
+- `clean` deletes readable terminal runs and skips running, unknown, legacy, or unreadable state. Use `--dry-run` before deletion; it reports `wouldRemove` without removing anything. Retain recent runs with `--older-than 7d` and/or `--keep-last 10`.
+- `migrate` previews legacy run-state conversion by default. Use `--apply` to atomically add validated v1 metadata without deleting or rewriting existing session, prompt, output, or turn files. Use `--quarantine` with `--apply` to move unsupported legacy directories out of `runs/` without deleting them; quarantine paths are reported for recovery. Use `migrate NAME --restore --apply` to move one quarantined directory back, with collision and ambiguity checks. `--apply` and `--dry-run` are mutually exclusive.
 - `cancel` terminates the worker process tree, records `cancelled`, and preserves the engine session for a later `send`.
 - `doctor` reports the current OS support level, safe executable resolution, and state location for each engine. Pass engine names to narrow the check. It exits 1 if a selected engine is missing or unsupported.
 - `skill install` installs bundled instructions for `claude-code`, `codex`, `devin`, or `hermes`. Existing standalone files are not overwritten unless `--force` is supplied.
@@ -108,6 +110,9 @@ sidekick spawn claude migration --model sonnet --mode accept-edits -- "Inspect o
 sidekick spawn devin frontend --dir "C:\Work Files\app" -- "Run the UI tests"
 sidekick wait migration frontend --all --timeout 900 --quiet
 sidekick status --json
+sidekick status --limit 10 --running
+sidekick status --all --json
+sidekick clean --dry-run --older-than 7d --keep-last 10 --json
 sidekick clean --older-than 7d --keep-last 10
 sidekick skill install claude-code
 ```

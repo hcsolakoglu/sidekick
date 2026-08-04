@@ -3,6 +3,8 @@ import { refresh } from "../core/run-service.js";
 import { CliError } from "../utils/errors.js";
 import { parseOptions } from "./shared.js";
 
+const TERMINAL_STATUSES = new Set(["done", "died", "cancelled"]);
+
 export function parseDuration(value: string): number {
   const match = /^(\d+(?:\.\d+)?)(ms|s|m|h|d|w)$/u.exec(value.trim());
   if (!match) throw new CliError("duration must look like 30m, 24h, or 7d");
@@ -23,6 +25,7 @@ export async function cleanCommand(args: string[], store: RunStore): Promise<num
     options: {
       "older-than": { type: "string" },
       "keep-last": { type: "string", default: "0" },
+      "dry-run": { type: "boolean", default: false },
       json: { type: "boolean", default: false },
     },
   });
@@ -31,17 +34,30 @@ export async function cleanCommand(args: string[], store: RunStore): Promise<num
     throw new CliError("--keep-last must be a non-negative integer");
   const cutoff = values["older-than"] ? Date.now() - parseDuration(values["older-than"]) : Infinity;
   const selected = positionals.length ? new Set(positionals) : null;
-  const records = (await Promise.all((await store.list()).map((record) => refresh(store, record))))
+  const scan = await store.scanSummaries();
+  const records = (
+    await Promise.all(
+      scan.records.map((record) =>
+        record.status === "running" ? refresh(store, record) : Promise.resolve(record),
+      ),
+    )
+  )
     .filter((record) => !selected || selected.has(record.meta.name))
-    .sort((left, right) => right.meta.updatedAt.localeCompare(left.meta.updatedAt));
+    .sort(
+      (left, right) =>
+        right.meta.updatedAt.localeCompare(left.meta.updatedAt) ||
+        left.meta.name.localeCompare(right.meta.name),
+    );
   const protectedNames = new Set(
     records
-      .filter((record) => record.status !== "running")
+      .filter((record) => TERMINAL_STATUSES.has(record.status))
       .slice(0, keepLast)
       .map((record) => record.meta.name),
   );
   const removed: string[] = [];
+  const wouldRemove: string[] = [];
   const skippedRunning: string[] = [];
+  const skippedUnknown: string[] = [];
   const kept: string[] = [];
   for (const record of records) {
     const name = record.meta.name;
@@ -50,21 +66,46 @@ export async function cleanCommand(args: string[], store: RunStore): Promise<num
       process.stderr.write(`sidekick: skipping running run: ${name}\n`);
       continue;
     }
-    if (protectedNames.has(name) || Date.parse(record.meta.updatedAt) > cutoff) {
+    if (!TERMINAL_STATUSES.has(record.status)) {
+      skippedUnknown.push(name);
+      process.stderr.write(`sidekick: skipping run with unknown status: ${name}\n`);
+      continue;
+    }
+    const updatedAt = Date.parse(record.meta.updatedAt);
+    if (protectedNames.has(name) || !Number.isFinite(updatedAt) || updatedAt > cutoff) {
       kept.push(name);
       continue;
     }
+    if (values["dry-run"]) {
+      wouldRemove.push(name);
+      continue;
+    }
     await store.withLock(name, async () => {
-      const current = await refresh(store, await store.read(name));
+      const current = await refresh(store, await store.readSummary(name), undefined, false);
       if (current.status === "running") {
         skippedRunning.push(name);
+        return;
+      }
+      if (!TERMINAL_STATUSES.has(current.status)) {
+        skippedUnknown.push(name);
         return;
       }
       await store.remove(name);
       removed.push(name);
     });
   }
-  if (values.json) process.stdout.write(`${JSON.stringify({ removed, skippedRunning, kept })}\n`);
-  else process.stdout.write(`removed ${removed.length}\n`);
+  const skipped = scan.skipped.filter((entry) => !selected || selected.has(entry.name));
+  if (values.json)
+    process.stdout.write(
+      `${JSON.stringify({ removed, wouldRemove, skippedRunning, skippedUnknown, kept, skipped })}\n`,
+    );
+  else
+    process.stdout.write(
+      `${values["dry-run"] ? "would remove" : "removed"} ${values["dry-run"] ? wouldRemove.length : removed.length}\n`,
+    );
+  if (skipped.length)
+    process.stderr.write(
+      `sidekick: skipped ${skipped.length} unreadable or legacy run directories; only readable terminal runs are eligible\n`,
+    );
   return 0;
 }
