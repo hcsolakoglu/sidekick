@@ -55,22 +55,26 @@ test("capabilities resolves exact Claude model effort value sets", () => {
 });
 
 test("capabilities scopes model-dependent gates per engine", () => {
-  const single = run(["capabilities", "codex", "--model", "claude-opus-4-7", "--json"]);
-  assert.equal(single.status, 2);
-  assert.equal(single.stdout, "");
-  assert.match(single.stderr, /model-dependent|unverified/iu);
+  // Claude effort is exact-model; unknown Claude models fail closed.
+  const claudeUnknown = run(["capabilities", "claude", "--model", "totally-unknown", "--json"]);
+  assert.equal(claudeUnknown.status, 2);
+  assert.equal(claudeUnknown.stdout, "");
+  assert.match(claudeUnknown.stderr, /model-dependent|unverified/iu);
 
-  const multi = run(["capabilities", "claude", "codex", "--model", "claude-opus-4-7", "--json"]);
-  assert.equal(multi.status, 2);
-  assert.equal(multi.stdout, "");
-  assert.match(multi.stderr, /codex\/effort|model-dependent/iu);
+  // Codex effort is value-gated for any model (no curated model allowlist).
+  const codexAny = run(["capabilities", "codex", "--model", "gpt-5.6", "--json"]);
+  assert.equal(codexAny.status, 0, codexAny.stderr);
+  const codexValue = JSON.parse(codexAny.stdout);
+  assert.ok(
+    codexValue.capabilities.some(
+      (entry) =>
+        entry.engine === "codex" &&
+        entry.axis === "effort" &&
+        entry.values?.includes("medium") &&
+        entry.modelDependent === false,
+    ),
+  );
 
   const verified = run(["capabilities", "codex", "--model", "gpt-5.3-codex", "--json"]);
   assert.equal(verified.status, 0, verified.stderr);
-  const value = JSON.parse(verified.stdout);
-  assert.ok(
-    value.capabilities.some(
-      (entry) => entry.engine === "codex" && entry.axis === "effort" && entry.modelDependent,
-    ),
-  );
 });

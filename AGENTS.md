@@ -30,6 +30,7 @@ Use this file as the canonical rule list for AI agents and humans. Read [CONTRIB
 - New runs persist one immutable `meta.controls` snapshot from the creation action (`initial`/`adopt`). `requested`, `applied`, and `effective` are distinct; adapter argv/config evidence is not provider/runtime effective evidence.
 - `applied` describes the creation-time application path. Resume/fallback turns may emit different native mechanisms for the same requested values; each turn's `command.json` is the authoritative argv for that turn. Worker builds reproject applied mechanisms for the current action without rewriting the creation snapshot.
 - Explicit unsupported, unverified, invalid, or value-level mismatched controls fail closed with exit code `2` before prompt, cwd, discovery, lock, store, or worker side effects.
+- Codex `--effort` is value-gated (`minimal|low|medium|high|xhigh`) for any `--model`; Sidekick does not maintain a curated Codex model allowlist. Provider may ignore unsupported levels. Claude effort remains exact-model per official model-config docs.
 - `status --json` and spawn/adopt JSON acknowledgements expose control state. `command.json` records the exact argv sent to the engine.
 
 ## Verification contract

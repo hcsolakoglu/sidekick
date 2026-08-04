@@ -127,6 +127,8 @@ const CLAUDE_EFFORT_ALL_MODELS = [
   "claude-opus-4-7",
 ] as const;
 const CLAUDE_EFFORT_LIMITED_MODELS = ["claude-opus-4-6", "claude-sonnet-4-6"] as const;
+/** Codex CLI accepts these via -c model_reasoning_effort=... for any --model. */
+const CODEX_EFFORT_VALUES = ["minimal", "low", "medium", "high", "xhigh"] as const;
 
 function claudeEffortRecords(action: ControlAction): CapabilityRecord[] {
   const all = CLAUDE_EFFORT_ALL_MODELS.map((model) =>
@@ -361,10 +363,10 @@ export const capabilityRegistry: readonly CapabilityRecord[] = [
     "effort",
     "initial",
     "native",
-    true,
-    "model_reasoning_effort is model-dependent.",
-    ["gpt-5.3-codex"],
-    ["minimal", "low", "medium", "high", "xhigh"],
+    false,
+    "Codex accepts -c model_reasoning_effort for any --model; provider may ignore unsupported levels.",
+    undefined,
+    [...CODEX_EFFORT_VALUES],
   ),
   record(
     "codex",
@@ -375,10 +377,10 @@ export const capabilityRegistry: readonly CapabilityRecord[] = [
     "effort",
     "resume",
     "native",
-    true,
-    "Resume uses -c model_reasoning_effort when model evidence exists.",
-    ["gpt-5.3-codex"],
-    ["minimal", "low", "medium", "high", "xhigh"],
+    false,
+    "Resume uses -c model_reasoning_effort for any --model; provider may ignore unsupported levels.",
+    undefined,
+    [...CODEX_EFFORT_VALUES],
   ),
   record(
     "codex",
@@ -445,10 +447,10 @@ export const capabilityRegistry: readonly CapabilityRecord[] = [
     "effort",
     "adopt",
     "native",
-    true,
-    "Adopt persists model-dependent effort for later resume.",
-    ["gpt-5.3-codex"],
-    ["minimal", "low", "medium", "high", "xhigh"],
+    false,
+    "Adopt persists effort for later resume; Codex applies it via config override.",
+    undefined,
+    [...CODEX_EFFORT_VALUES],
   ),
   record(
     "codex",
@@ -501,10 +503,10 @@ export const capabilityRegistry: readonly CapabilityRecord[] = [
     "effort",
     "fallback",
     "native",
-    true,
-    "Fallback preserves model-dependent effort.",
-    ["gpt-5.3-codex"],
-    ["minimal", "low", "medium", "high", "xhigh"],
+    false,
+    "Fallback preserves effort via -c model_reasoning_effort.",
+    undefined,
+    [...CODEX_EFFORT_VALUES],
   ),
   ...adapterSurfaceRecords("codex", CODEX_VERSION, ["resume", "fallback"]),
   record(

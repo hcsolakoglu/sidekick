@@ -243,17 +243,38 @@ test("adopt has an explicit capability action and malformed controls fail closed
     false,
   );
 });
-test("model-dependent effort without verified model fails closed", () => {
+test("Codex effort is value-gated for any model, not a curated model allowlist", () => {
+  const gpt56 = resolveControls({
+    ...base,
+    engine: "codex",
+    model: "gpt-5.6",
+    effort: "medium",
+    action: "initial",
+    toolVersion: "codex-cli 0.146.0",
+  });
+  assert.equal(gpt56.effort.requested, "medium");
+  assert.equal(gpt56.effort.applied?.configPath, "model_reasoning_effort");
+
+  const sol = resolveControls({
+    ...base,
+    engine: "codex",
+    model: "gpt-5.6-codex",
+    effort: "high",
+    action: "initial",
+    toolVersion: "codex-cli 0.146.0",
+  });
+  assert.equal(sol.effort.applied?.value, "high");
+
   assert.throws(
     () =>
       resolveControls({
         ...base,
         engine: "codex",
         effort: "max",
-        model: "unknown-model",
+        model: "gpt-5.6",
         toolVersion: "codex-cli 0.146.0",
       }),
-    (error) => error?.exitCode === 2 && /unverified|model-dependent/iu.test(error.message),
+    (error) => error?.exitCode === 2 && /not accepted|unsupported/iu.test(error.message),
   );
 });
 
