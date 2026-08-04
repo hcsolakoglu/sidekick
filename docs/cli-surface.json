@@ -1,17 +1,51 @@
 {
   "schemaVersion": 1,
   "commands": [
-    { "path": "spawn", "flags": ["--dir", "--json", "--mode", "--model", "--on-complete"] },
+    {
+      "path": "spawn",
+      "flags": [
+        "--dir",
+        "--effort",
+        "--json",
+        "--mode",
+        "--model",
+        "--on-complete",
+        "--permission",
+        "--provider",
+        "--sandbox",
+        "--transport",
+        "--workspace-trust"
+      ]
+    },
     { "path": "send", "flags": ["--force", "--json"] },
-    { "path": "wait", "flags": ["--all", "--json", "--quiet", "--timeout"] },
-    { "path": "adopt", "flags": ["--dir", "--json", "--mode", "--model", "--session"] },
+    { "path": "wait", "flags": ["--all", "--dir", "--engine", "--json", "--quiet", "--timeout"] },
+    {
+      "path": "adopt",
+      "flags": [
+        "--dir",
+        "--effort",
+        "--json",
+        "--mode",
+        "--model",
+        "--permission",
+        "--provider",
+        "--sandbox",
+        "--session",
+        "--transport",
+        "--workspace-trust"
+      ]
+    },
     { "path": "tail", "flags": ["-n"] },
-    { "path": "status", "flags": ["--all", "--json", "--limit", "--running"] },
+    { "path": "status", "flags": ["--all", "--dir", "--engine", "--json", "--limit", "--running"] },
     { "path": "result", "flags": ["--json"] },
-    { "path": "clean", "flags": ["--dry-run", "--json", "--keep-last", "--older-than"] },
+    {
+      "path": "clean",
+      "flags": ["--dir", "--dry-run", "--engine", "--json", "--keep-last", "--older-than"]
+    },
     { "path": "migrate", "flags": ["--apply", "--dry-run", "--json", "--quarantine", "--restore"] },
     { "path": "cancel", "flags": ["--json"] },
     { "path": "doctor", "flags": ["--json"] },
+    { "path": "capabilities", "flags": ["--json", "--model"] },
     { "path": "skill install", "flags": ["--force", "--json"] }
   ],
   "globalFlags": ["--help", "--version", "-h", "-v"]

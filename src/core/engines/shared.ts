@@ -1,4 +1,5 @@
 import { CliError } from "../../utils/errors.js";
+import type { HarnessControls } from "../controls.js";
 
 export function commandOverride(name: string, fallback: string, env: NodeJS.ProcessEnv): string[] {
   const raw = env[`SIDEKICK_ENGINE_${name.toUpperCase()}_CMD`];
@@ -36,4 +37,21 @@ export function invocation(prefix: string[], args: string[], stdin?: string) {
   return stdin === undefined
     ? { command, args: [...leading, ...args] }
     : { command, args: [...leading, ...args], stdin };
+}
+
+export function controlString(
+  controls: HarnessControls | undefined,
+  axis: keyof HarnessControls,
+  fallback: string,
+): string {
+  const value = controls?.[axis].applied?.value;
+  return typeof value === "string" ? value : fallback;
+}
+
+export function controlBoolean(
+  controls: HarnessControls | undefined,
+  axis: keyof HarnessControls,
+): boolean | undefined {
+  const value = controls?.[axis].applied?.value;
+  return typeof value === "boolean" ? value : undefined;
 }

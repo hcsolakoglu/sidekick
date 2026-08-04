@@ -1,7 +1,14 @@
 import { refresh } from "../core/run-service.js";
 import type { RunRecord, RunStore } from "../core/run-store.js";
 import { CliError } from "../utils/errors.js";
-import { parseOptions } from "./shared.js";
+import {
+  matchesRunFilters,
+  normalizeDirectoryFilter,
+  parseEngineFilter,
+  parseOptions,
+} from "./shared.js";
+import type { HarnessControls } from "../core/controls.js";
+import { createLegacyControls } from "../core/controls.js";
 
 const DEFAULT_STATUS_LIMIT = 20;
 const MAX_STATUS_LIMIT = 1000;
@@ -15,9 +22,19 @@ export interface StatusJson {
   session: string;
   directory: string;
   updatedAt: string;
+  controls?: HarnessControls;
 }
 export function statusJson(record: RunRecord): StatusJson {
-  return {
+  let controls = record.meta.controls;
+  if (!controls) {
+    controls = createLegacyControls({
+      engine: record.meta.engine,
+      model: record.meta.model,
+      mode: record.meta.mode,
+      action: "initial",
+    });
+  }
+  const result: StatusJson = {
     name: record.meta.name,
     engine: record.meta.engine,
     status: record.status,
@@ -27,6 +44,8 @@ export function statusJson(record: RunRecord): StatusJson {
     directory: record.meta.directory,
     updatedAt: record.meta.updatedAt,
   };
+  if (controls) result.controls = controls;
+  return result;
 }
 
 export async function statusCommand(args: string[], store: RunStore): Promise<number> {
@@ -35,21 +54,30 @@ export async function statusCommand(args: string[], store: RunStore): Promise<nu
       all: { type: "boolean", default: false },
       limit: { type: "string", default: String(DEFAULT_STATUS_LIMIT) },
       running: { type: "boolean", default: false },
+      engine: { type: "string" },
+      dir: { type: "string" },
       json: { type: "boolean", default: false },
     },
   });
   if (positionals.length) throw new CliError("status takes no positional arguments");
 
   const limit = parseStatusLimit(values.limit);
+  const engineFilter = parseEngineFilter(values.engine);
+  const directoryFilter = normalizeDirectoryFilter(values.dir);
+  const filters = {
+    ...(engineFilter ? { engine: engineFilter } : {}),
+    ...(directoryFilter ? { directory: directoryFilter } : {}),
+  };
   const scan = await store.scanSummaries();
+  const filteredRecords = scan.records.filter((record) => matchesRunFilters(record, filters));
   const refreshed = new Map(
     await Promise.all(
-      scan.records
+      filteredRecords
         .filter((record) => record.status === "running")
         .map(async (record) => [record.meta.name, await refresh(store, record)] as const),
     ),
   );
-  const records = scan.records.map((record) => refreshed.get(record.meta.name) ?? record);
+  const records = filteredRecords.map((record) => refreshed.get(record.meta.name) ?? record);
   const ordered = records.sort(compareRecords);
   const running = ordered.filter((record) => record.status === "running");
   const terminal = ordered.filter((record) => record.status !== "running");
@@ -65,6 +93,7 @@ export async function statusCommand(args: string[], store: RunStore): Promise<nu
     shown: visible.length,
     truncated: visible.length < total,
     skipped: scan.skipped,
+    filters: { engine: filters.engine ?? null, directory: filters.directory ?? null },
   };
   if (values.json) process.stdout.write(`${JSON.stringify(report)}\n`);
   else {

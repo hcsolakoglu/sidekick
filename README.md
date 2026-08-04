@@ -73,17 +73,18 @@ sidekick wait demo --json
 ## Commands
 
 ```text
-sidekick spawn ENGINE NAME [--dir PATH] [--model MODEL] [--mode MODE] [--on-complete CMD] [--json] -- PROMPT
+sidekick spawn ENGINE NAME [--dir PATH] [--model MODEL] [--provider PROVIDER] [--transport TRANSPORT] [--effort EFFORT] [--permission PERMISSION] [--sandbox VALUE] [--workspace-trust BOOL] [--mode MODE] [--on-complete CMD] [--json] -- PROMPT
 sidekick send NAME [--force] [--json] -- PROMPT
-sidekick wait [NAME ...] [--all] [--timeout SECONDS] [--quiet] [--json]
-sidekick adopt ENGINE NAME --session ID [--dir PATH] [--model MODEL] [--mode MODE] [--json]
+sidekick wait [NAME ...] [--all] [--engine ENGINE] [--dir PATH] [--timeout SECONDS] [--quiet] [--json]
+sidekick adopt ENGINE NAME --session ID [--dir PATH] [--model MODEL] [--provider PROVIDER] [--transport TRANSPORT] [--effort EFFORT] [--permission PERMISSION] [--sandbox VALUE] [--workspace-trust BOOL] [--mode MODE] [--json]
 sidekick tail NAME [-n LINES]
-sidekick status [--all] [--limit N] [--running] [--json]
+sidekick status [--all] [--engine ENGINE] [--dir PATH] [--limit N] [--running] [--json]
 sidekick result NAME [--json]
-sidekick clean [NAME ...] [--older-than DUR] [--keep-last N] [--dry-run] [--json]
+sidekick clean [NAME ...] [--dir PATH] [--engine ENGINE] [--older-than DUR] [--keep-last N] [--dry-run] [--json]
 sidekick migrate [NAME ...] [--apply] [--dry-run] [--quarantine] [--restore] [--json]
 sidekick cancel NAME [--json]
 sidekick doctor [ENGINE ...] [--json]
+sidekick capabilities [ENGINE ...] [--model MODEL] --json
 sidekick skill install HARNESS [--force] [--json]
 ```
 
@@ -100,6 +101,16 @@ sidekick skill install HARNESS [--force] [--json]
 - `skill install` installs bundled instructions for `claude-code`, `codex`, `devin`, or `hermes`. Existing standalone files are not overwritten unless `--force` is supplied.
 
 Run `sidekick --help` for the compact command reference.
+
+### Control contract
+
+`--mode` is a legacy compatibility input, not a canonical control field. New runs persist one immutable `controls` snapshot in `RunMeta` with separate `requested`, `applied`, and `effective` observations for model, provider, transport, effort, permission, sandbox, workspace trust, profile, budget, and cwd restoration.
+
+- `requested` is user intent, `applied` is the exact native flag/config/omission Sidekick selected, and `effective` is null until the provider or runtime reports an effective value. An argv flag alone never proves `effective`.
+- Explicit unsupported, malformed, version-mismatched, or model-dependent-unverified values fail before prompt consumption, cwd resolution, discovery, run creation, or worker start with exit code 2. Silent downgrade is forbidden.
+- Use `sidekick capabilities ENGINE --model MODEL --json` to inspect versioned evidence. Its registry key is `(engine, provider, model, transport, toolVersion, axis, action)` and reports `native`, `unsupported`, `simulated`, or `unverified` support.
+- Devin's family slug `glm-5.2` and variant UID `glm-5-2` are distinct identifiers. Sidekick never silently aliases one to the other. `normal` is Devin's canonical default and maps to native `auto`; `smart` is not advertised for current evidence.
+- `send` accepts no control overrides. Resume/fallback reuses persisted controls rather than accepting a new mode, effort, permission, sandbox, provider, or transport value.
 
 ## Examples
 

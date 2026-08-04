@@ -1,11 +1,12 @@
 import type { Engine } from "./types.js";
-import { commandOverride, invocation } from "./shared.js";
+import { commandOverride, controlString, invocation } from "./shared.js";
 
 export const hermesEngine: Engine = {
   name: "hermes",
   build(context) {
     const args = ["--pass-session-id"];
-    if (context.model) args.push("--model", context.model);
+    const model = controlString(context.controls, "model", context.model);
+    if (model) args.push("--model", model);
     if (context.action === "resume" && context.session) args.push("--resume", context.session);
     args.push("--oneshot", context.prompt);
     return invocation(commandOverride("hermes", "hermes", context.env), args);

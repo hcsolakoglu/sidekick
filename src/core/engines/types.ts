@@ -1,6 +1,8 @@
 export type EngineName = "codex" | "devin" | "claude" | "hermes" | "mock";
 export type WorkerAction = "spawn" | "resume" | "fallback";
 
+import type { HarnessControls } from "../controls.js";
+
 export interface EngineContext {
   action: WorkerAction;
   session: string;
@@ -9,6 +11,7 @@ export interface EngineContext {
   outputFile: string;
   model: string;
   mode: string;
+  controls?: HarnessControls;
   delayMs: number;
   env: NodeJS.ProcessEnv;
 }

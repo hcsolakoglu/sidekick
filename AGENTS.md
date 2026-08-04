@@ -23,6 +23,14 @@ Use this file as the canonical rule list for AI agents and humans. Read [CONTRIB
 - Do not call `process.exit()` or assign `process.exitCode` outside the CLI error boundary in `src/cli.ts`.
 - Keep `--json` stdout as pure JSON or JSON Lines. Send diagnostics and progress to stderr.
 
+## Control-plane contract
+
+- Before delegation, run `sidekick doctor ENGINE`, then `sidekick capabilities ENGINE --model MODEL --json`; choose only controls whose exact engine/provider/model/transport/toolVersion/action record is native or simulated.
+- `--mode` remains a legacy compatibility input. It is not a universal permission, effort, sandbox, or reasoning field.
+- New runs persist one immutable `meta.controls` snapshot. `requested`, `applied`, and `effective` are distinct; adapter argv/config evidence is not provider/runtime effective evidence.
+- Explicit unsupported, unverified, invalid, or value-level mismatched controls fail closed with exit code `2` before prompt, cwd, discovery, lock, store, or worker side effects.
+- `status --json` and spawn/adopt JSON acknowledgements expose control state. `command.json` records the exact argv sent to the engine.
+
 ## Verification contract
 
 Run every command before claiming completion:

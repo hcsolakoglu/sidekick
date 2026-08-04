@@ -1,6 +1,7 @@
 import { adoptCommand } from "./commands/adopt.js";
 import { cleanCommand } from "./commands/clean.js";
 import { cancelCommand } from "./commands/cancel.js";
+import { capabilitiesCommand } from "./commands/capabilities.js";
 import { doctorCommand } from "./commands/doctor.js";
 import { migrateCommand } from "./commands/migrate.js";
 import { resultCommand } from "./commands/result.js";
@@ -19,17 +20,18 @@ export const VERSION = "0.1.0";
 export const HELP = `sidekick ${VERSION} — persistent local multi-agent orchestration
 
 Usage:
-  sidekick spawn ENGINE NAME [--dir PATH] [--model MODEL] [--mode MODE] [--on-complete CMD] [--json] -- PROMPT
+  sidekick spawn ENGINE NAME [--dir PATH] [--model MODEL] [--provider PROVIDER] [--transport TRANSPORT] [--effort EFFORT] [--permission PERMISSION] [--sandbox VALUE] [--workspace-trust BOOL] [--mode MODE] [--on-complete CMD] [--json] -- PROMPT
   sidekick send NAME [--force] [--json] -- PROMPT
-  sidekick wait [NAME ...] [--all] [--timeout SECONDS] [--quiet] [--json]
-  sidekick adopt ENGINE NAME --session ID [--dir PATH] [--model MODEL] [--mode MODE] [--json]
+  sidekick wait [NAME ...] [--all] [--engine ENGINE] [--dir PATH] [--timeout SECONDS] [--quiet] [--json]
+  sidekick adopt ENGINE NAME --session ID [--dir PATH] [--model MODEL] [--provider PROVIDER] [--transport TRANSPORT] [--effort EFFORT] [--permission PERMISSION] [--sandbox VALUE] [--workspace-trust BOOL] [--mode MODE] [--json]
   sidekick tail NAME [-n LINES]
-  sidekick status [--all] [--limit N] [--running] [--json]
+  sidekick status [--all] [--engine ENGINE] [--dir PATH] [--limit N] [--running] [--json]
   sidekick result NAME [--json]
-  sidekick clean [NAME ...] [--older-than DUR] [--keep-last N] [--dry-run] [--json]
+  sidekick clean [NAME ...] [--dir PATH] [--engine ENGINE] [--older-than DUR] [--keep-last N] [--dry-run] [--json]
   sidekick migrate [NAME ...] [--apply] [--dry-run] [--quarantine] [--restore] [--json]
   sidekick cancel NAME [--json]
   sidekick doctor [ENGINE ...] [--json]
+  sidekick capabilities [ENGINE ...] [--model MODEL] --json
   sidekick skill install HARNESS [--force] [--json]
 
 Engines: codex, devin, claude, hermes, mock
@@ -53,7 +55,6 @@ export async function run(argv: string[], store = new RunStore()): Promise<numbe
     process.stdout.write(`${VERSION}\n`);
     return 0;
   }
-  await store.initialize();
   const [command, ...args] = argv;
   const abort = new AbortController();
   const interrupt = () => {
@@ -85,6 +86,8 @@ export async function run(argv: string[], store = new RunStore()): Promise<numbe
         return await cancelCommand(args, store);
       case "doctor":
         return await doctorCommand(args, store);
+      case "capabilities":
+        return capabilitiesCommand(args);
       case "skill":
         return await skillCommand(args, store);
       case "_worker": {

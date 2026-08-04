@@ -1,7 +1,12 @@
 import type { RunStore } from "../core/run-store.js";
 import { refresh } from "../core/run-service.js";
 import { CliError } from "../utils/errors.js";
-import { parseOptions } from "./shared.js";
+import {
+  matchesRunFilters,
+  normalizeDirectoryFilter,
+  parseEngineFilter,
+  parseOptions,
+} from "./shared.js";
 
 const TERMINAL_STATUSES = new Set(["done", "died", "cancelled"]);
 
@@ -26,6 +31,8 @@ export async function cleanCommand(args: string[], store: RunStore): Promise<num
       "older-than": { type: "string" },
       "keep-last": { type: "string", default: "0" },
       "dry-run": { type: "boolean", default: false },
+      engine: { type: "string" },
+      dir: { type: "string" },
       json: { type: "boolean", default: false },
     },
   });
@@ -34,12 +41,20 @@ export async function cleanCommand(args: string[], store: RunStore): Promise<num
     throw new CliError("--keep-last must be a non-negative integer");
   const cutoff = values["older-than"] ? Date.now() - parseDuration(values["older-than"]) : Infinity;
   const selected = positionals.length ? new Set(positionals) : null;
+  const engineFilter = parseEngineFilter(values.engine);
+  const directoryFilter = normalizeDirectoryFilter(values.dir);
+  const filters = {
+    ...(engineFilter ? { engine: engineFilter } : {}),
+    ...(directoryFilter ? { directory: directoryFilter } : {}),
+  };
   const scan = await store.scanSummaries();
   const records = (
     await Promise.all(
-      scan.records.map((record) =>
-        record.status === "running" ? refresh(store, record) : Promise.resolve(record),
-      ),
+      scan.records
+        .filter((record) => matchesRunFilters(record, filters))
+        .map((record) =>
+          record.status === "running" ? refresh(store, record) : Promise.resolve(record),
+        ),
     )
   )
     .filter((record) => !selected || selected.has(record.meta.name))
@@ -94,10 +109,16 @@ export async function cleanCommand(args: string[], store: RunStore): Promise<num
       removed.push(name);
     });
   }
-  const skipped = scan.skipped.filter((entry) => !selected || selected.has(entry.name));
+  const skipped = scan.skipped.filter(
+    (entry) =>
+      (!selected || selected.has(entry.name)) &&
+      (!engineFilter || entry.engine === engineFilter) &&
+      (!directoryFilter ||
+        (entry.directory && normalizeDirectoryFilter(entry.directory) === directoryFilter)),
+  );
   if (values.json)
     process.stdout.write(
-      `${JSON.stringify({ removed, wouldRemove, skippedRunning, skippedUnknown, kept, skipped })}\n`,
+      `${JSON.stringify({ removed, wouldRemove, skippedRunning, skippedUnknown, kept, skipped, filters: { engine: engineFilter ?? null, directory: directoryFilter ?? null } })}\n`,
     );
   else
     process.stdout.write(

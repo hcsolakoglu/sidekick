@@ -4,7 +4,12 @@ import { refresh } from "../core/run-service.js";
 import type { RunRecord, RunStore } from "../core/run-store.js";
 import { isProcessAlive, processIdentityMatches } from "../core/process.js";
 import { CliError } from "../utils/errors.js";
-import { parseOptions } from "./shared.js";
+import {
+  matchesRunFilters,
+  normalizeDirectoryFilter,
+  parseEngineFilter,
+  parseOptions,
+} from "./shared.js";
 
 export function changeOrDelay(
   paths: string[],
@@ -82,12 +87,22 @@ export async function waitCommand(
       timeout: { type: "string" },
       all: { type: "boolean", default: false },
       quiet: { type: "boolean", default: false },
+      engine: { type: "string" },
+      dir: { type: "string" },
       json: { type: "boolean", default: false },
     },
   });
   const timeout = values.timeout === undefined ? undefined : Number(values.timeout);
   if (timeout !== undefined && (!Number.isFinite(timeout) || timeout < 0))
     throw new CliError("--timeout must be a non-negative number");
+  const engineFilter = parseEngineFilter(values.engine);
+  const directoryFilter = normalizeDirectoryFilter(values.dir);
+  if (positionals.length && (engineFilter || directoryFilter))
+    throw new CliError("wait NAME does not accept --engine or --dir filters");
+  const filters = {
+    ...(engineFilter ? { engine: engineFilter } : {}),
+    ...(directoryFilter ? { directory: directoryFilter } : {}),
+  };
   let records: RunRecord[];
   if (positionals.length) {
     const missing = (
@@ -96,7 +111,9 @@ export async function waitCommand(
     if (missing.length) throw new CliError(`unknown run(s): ${missing.join(", ")}`);
     records = await Promise.all(positionals.map((name) => store.read(name)));
   } else {
-    records = (await store.listSummaries()).filter((record) => record.status === "running");
+    records = (await store.listSummaries()).filter(
+      (record) => record.status === "running" && matchesRunFilters(record, filters),
+    );
     if (!records.length) throw new CliError("no running runs");
   }
   const deadline = timeout === undefined ? Infinity : Date.now() + timeout * 1000;

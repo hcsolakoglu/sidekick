@@ -1,11 +1,17 @@
 import { readFileSync } from "node:fs";
 import type { Engine } from "./types.js";
-import { commandOverride, invocation } from "./shared.js";
+import { commandOverride, controlString, invocation } from "./shared.js";
 
 export const codexEngine: Engine = {
   name: "codex",
   build(context) {
     const prefix = commandOverride("codex", "codex", context.env);
+    const model = controlString(context.controls, "model", context.model);
+    const sandbox = controlString(context.controls, "sandbox", context.mode);
+    const permission = controlString(context.controls, "permission", "");
+    const permissionOverride = permission ? ["-c", `approval_policy=${permission}`] : [];
+    const effort = controlString(context.controls, "effort", "");
+    const effortOverride = effort ? ["-c", `model_reasoning_effort=${effort}`] : [];
     const args =
       context.action === "resume" && context.session
         ? [
@@ -14,7 +20,10 @@ export const codexEngine: Engine = {
             "--json",
             "-o",
             context.outputFile,
-            ...(context.model ? ["--model", context.model] : []),
+            ...(model ? ["--model", model] : []),
+            ...(sandbox ? ["-c", `sandbox_mode=${sandbox}`] : []),
+            ...permissionOverride,
+            ...effortOverride,
             context.session,
             "-",
           ]
@@ -24,8 +33,10 @@ export const codexEngine: Engine = {
             "-o",
             context.outputFile,
             "--skip-git-repo-check",
-            ...(context.model ? ["--model", context.model] : []),
-            ...(context.mode ? ["--sandbox", context.mode] : []),
+            ...(model ? ["--model", model] : []),
+            ...(sandbox ? ["--sandbox", sandbox] : []),
+            ...permissionOverride,
+            ...effortOverride,
             "-",
           ];
     return invocation(prefix, args, context.prompt);

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { access, lstat, mkdir, readFile, readdir, rename, unlink } from "node:fs/promises";
 import { join } from "node:path";
+import { createLegacyControls } from "./controls.js";
 import { engineNames } from "./engines/index.js";
 import type { EngineName } from "./engines/types.js";
 import { processIdentityMatches } from "./process.js";
@@ -185,6 +186,12 @@ async function inspectLegacyRun(source: string, name: string): Promise<LegacyRun
       activeRun,
       createdAt: new Date(times.min).toISOString(),
       updatedAt: new Date(times.max).toISOString(),
+      controls: createLegacyControls({
+        engine: engineValue as EngineName,
+        model,
+        mode,
+        action: "initial",
+      }),
       ...(onComplete ? { onComplete } : {}),
     };
     return {

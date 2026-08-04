@@ -123,9 +123,9 @@ test("summary scans avoid output logs and report legacy or corrupt state", async
     [
       { name: "bad name", reason: "unreadable" },
       { name: "corrupt", reason: "corrupt-meta" },
-      { name: "legacy", reason: "no-meta" },
+      { name: "legacy", reason: "no-meta", engine: "mock" },
       { name: "malformed", reason: "corrupt-meta" },
-      { name: "missing-status", reason: "unreadable" },
+      { name: "missing-status", reason: "unreadable", engine: "mock", directory: root },
     ],
   );
   assert.equal((await store.read("readable")).output, "large output\n");

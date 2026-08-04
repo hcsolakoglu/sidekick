@@ -61,6 +61,17 @@ test("spawn wait result and send resume persist a session", async () => {
   assert.deepEqual(JSON.parse(result.stdout), secondJson);
 });
 
+test("invalid control preflight leaves a fresh home untouched", async () => {
+  const sandbox = await temporary();
+  const home = join(sandbox, "home");
+  const result = await runCli(
+    ["spawn", "devin", "invalid-control", "--mode", "smart", "--dir", sandbox, "--", "probe"],
+    { env: { SIDEKICK_HOME: home } },
+  );
+  assert.equal(result.code, 2);
+  await assert.rejects(stat(home), { code: "ENOENT" });
+});
+
 test("wait --all reports every selected run", async () => {
   const sandbox = await temporary();
   const env = { SIDEKICK_HOME: join(sandbox, "home"), SIDEKICK_MOCK_DELAY_MS: "2000" };
@@ -109,6 +120,41 @@ test("adopt creates a completed resumable run", async () => {
     (await runCli(["wait", "legacy", "--timeout", "5", "--json"], { env })).stdout,
   );
   assert.equal(result.session, "existing-123");
+});
+
+test("status, clean, and wait apply engine and canonical directory filters", async () => {
+  const sandbox = await temporary();
+  const other = join(sandbox, "other");
+  await mkdir(other, { recursive: true });
+  const env = { SIDEKICK_HOME: join(sandbox, "home"), SIDEKICK_MOCK_DELAY_MS: "3000" };
+  await runCli(["adopt", "mock", "same-dir", "--session", "same", "--dir", sandbox], { env });
+  await runCli(["adopt", "mock", "other-dir", "--session", "other", "--dir", other], { env });
+  await runCli(["spawn", "mock", "active-filter", "--dir", sandbox, "--", "work"], { env });
+
+  const filtered = JSON.parse(
+    (await runCli(["status", "--all", "--engine", "mock", "--dir", sandbox, "--json"], { env }))
+      .stdout,
+  );
+  assert.deepEqual(filtered.runs.map(({ name }) => name).sort(), ["active-filter", "same-dir"]);
+  assert.deepEqual(filtered.filters, { engine: "mock", directory: sandbox });
+
+  const positionalFilter = await runCli(
+    ["wait", "same-dir", "--engine", "mock", "--timeout", "1"],
+    { env },
+  );
+  assert.equal(positionalFilter.code, 2);
+  const cleaned = JSON.parse(
+    (await runCli(["clean", "--engine", "mock", "--dir", sandbox, "--json"], { env })).stdout,
+  );
+  assert.deepEqual(cleaned.removed, ["same-dir"]);
+  assert.deepEqual(cleaned.skippedRunning, ["active-filter"]);
+  assert.deepEqual(cleaned.filters, { engine: "mock", directory: sandbox });
+  await runCli(
+    ["wait", "--all", "--engine", "mock", "--dir", sandbox, "--timeout", "5", "--quiet"],
+    { env },
+  );
+  const remaining = JSON.parse((await runCli(["status", "--all", "--json"], { env })).stdout);
+  assert.deepEqual(remaining.runs.map(({ name }) => name).sort(), ["active-filter", "other-dir"]);
 });
 
 test("status keeps active runs visible while bounding terminal history", async () => {
@@ -197,7 +243,7 @@ test("clean dry-run is non-destructive and surfaces legacy state", async () => {
   const plan = JSON.parse(planned.stdout);
   assert.deepEqual(plan.removed, []);
   assert.deepEqual(plan.wouldRemove, ["finished"]);
-  assert.deepEqual(plan.skipped, [{ name: "legacy-only", reason: "no-meta" }]);
+  assert.deepEqual(plan.skipped, [{ name: "legacy-only", reason: "no-meta", engine: "mock" }]);
   assert.match(planned.stderr, /unreadable or legacy/u);
   assert.match(await readFile(join(home, "runs", "finished", "meta.json"), "utf8"), /finished/u);
   assert.match(await readFile(join(legacy, "status"), "utf8"), /done/u);
@@ -265,6 +311,34 @@ test("migrate previews and atomically converts legacy state idempotently", async
     skipped: [{ name: "legacy-convert", reason: "not-legacy" }],
     errors: [],
   });
+});
+
+test("migrated legacy runs preserve controls through send fallback", async () => {
+  const sandbox = await temporary();
+  const home = join(sandbox, "home");
+  const env = { SIDEKICK_HOME: home, SIDEKICK_MOCK_DELAY_MS: "25" };
+  await writeLegacyRun(home, "legacy-send");
+
+  const migrated = await runCli(["migrate", "legacy-send", "--apply", "--json"], { env });
+  assert.equal(migrated.code, 0);
+  const meta = JSON.parse(await readFile(join(home, "runs", "legacy-send", "meta.json"), "utf8"));
+  assert.equal(meta.controls.transport.applied.source, "legacy");
+  assert.equal(meta.controls.transport.status, "requested");
+
+  await runCli(["send", "legacy-send", "--", "continue"], { env });
+  const result = JSON.parse(
+    (await runCli(["wait", "legacy-send", "--timeout", "5", "--json"], { env })).stdout,
+  );
+  assert.equal(result.status, "done");
+  assert.equal(result.session, "legacy-session");
+  assert.equal(result.output, "mock resume: continue\n");
+
+  const migratedMeta = JSON.parse(
+    await readFile(join(home, "runs", "legacy-send", "meta.json"), "utf8"),
+  );
+  assert.equal(migratedMeta.controls.transport.requested, "cli-subprocess");
+  assert.equal(migratedMeta.controls.transport.applied.source, "adapter");
+  assert.equal(migratedMeta.controls.transport.status, "applied");
 });
 
 test("migrate quarantines unsupported legacy state but never moves running state", async () => {
@@ -412,7 +486,11 @@ test("spawn send adopt and clean have pure JSON output", async () => {
     (await runCli(["spawn", "mock", "json-run", "--json", "--dir", sandbox, "--", "hi"], { env }))
       .stdout,
   );
-  assert.deepEqual(spawned, { name: "json-run", engine: "mock", status: "running", run: 1 });
+  assert.deepEqual(
+    { name: spawned.name, engine: spawned.engine, status: spawned.status, run: spawned.run },
+    { name: "json-run", engine: "mock", status: "running", run: 1 },
+  );
+  assert.equal(spawned.controls.transport.requested, "cli-subprocess");
   await runCli(["wait", "json-run", "--timeout", "5", "--quiet"], { env });
   const sent = JSON.parse(
     (await runCli(["send", "json-run", "--json", "--", "again"], { env })).stdout,

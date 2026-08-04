@@ -16,6 +16,7 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { CliError } from "../utils/errors.js";
+import { isHarnessControls, type HarnessControls } from "./controls.js";
 import type { EngineName } from "./engines/types.js";
 import { processIdentity, processIdentityMatches } from "./process.js";
 
@@ -27,6 +28,7 @@ export interface RunMeta {
   directory: string;
   model: string;
   mode: string;
+  controls?: HarnessControls;
   activeRun: number;
   createdAt: string;
   updatedAt: string;
@@ -45,6 +47,8 @@ export type RunStoreSkipReason = "no-meta" | "corrupt-meta" | "unreadable";
 export interface RunStoreSkipped {
   name: string;
   reason: RunStoreSkipReason;
+  engine?: EngineName;
+  directory?: string;
 }
 export interface RunStoreScan {
   records: RunRecord[];
@@ -52,6 +56,7 @@ export interface RunStoreScan {
 }
 
 const NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/u;
+const ENGINE_NAMES: readonly EngineName[] = ["codex", "devin", "claude", "hermes", "mock"];
 export function validateName(name: string): void {
   if (!NAME_RE.test(name) || name === "." || name === "..")
     throw new CliError("name must match [A-Za-z0-9][A-Za-z0-9._-]{0,79}");
@@ -65,12 +70,14 @@ export class RunStore {
   readonly root: string;
   readonly runs: string;
   readonly locks: string;
+  readonly discoveryLocks: string;
   private interrupted = false;
 
   constructor(root = sidekickHome()) {
     this.root = root;
     this.runs = join(root, "runs");
     this.locks = join(root, "locks");
+    this.discoveryLocks = join(root, "discovery-locks");
   }
 
   async initialize(): Promise<void> {
@@ -132,8 +139,22 @@ export class RunStore {
   }
 
   async withLock<T>(name: string, callback: () => Promise<T>): Promise<T> {
+    return this.withLockRoot(this.locks, `run-${name}.lock`, name, callback);
+  }
+
+  async withDiscoveryLock<T>(name: string, callback: () => Promise<T>): Promise<T> {
+    return this.withLockRoot(this.discoveryLocks, `discovery-${name}.lock`, name, callback);
+  }
+
+  private async withLockRoot<T>(
+    root: string,
+    lockName: string,
+    name: string,
+    callback: () => Promise<T>,
+  ): Promise<T> {
     validateName(name);
-    const lockPath = join(this.locks, `run-${name}.lock`);
+    await mkdir(root, { recursive: true, mode: 0o700 });
+    const lockPath = join(root, lockName);
     const deadline = Date.now() + 10_000;
     while (true) {
       if (this.interrupted) throw new CliError("interrupted", 130);
@@ -248,6 +269,19 @@ export class RunStore {
     }
   }
 
+  async updateMeta(
+    name: string,
+    patch: Partial<Pick<RunMeta, "controls" | "onComplete">>,
+  ): Promise<RunMeta> {
+    const meta = await this.readMeta(name);
+    const updated = { ...meta, ...patch, updatedAt: new Date().toISOString() };
+    await this.atomicWrite(
+      join(this.runPath(name), "meta.json"),
+      `${JSON.stringify(updated, null, 2)}\n`,
+    );
+    return updated;
+  }
+
   async read(name: string): Promise<RunRecord> {
     return this.readRecord(name, true);
   }
@@ -331,7 +365,11 @@ export class RunStore {
         hasMeta = true;
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
-          skipped.push({ name, reason: "unreadable" });
+          skipped.push({
+            name,
+            reason: "unreadable",
+            ...(await readFilterMetadata(base)),
+          });
           continue;
         }
       }
@@ -343,13 +381,14 @@ export class RunStore {
           skipped.push({
             name,
             reason: message.startsWith("corrupt metadata") ? "corrupt-meta" : "unreadable",
+            ...(await readFilterMetadata(base)),
           });
         }
         continue;
       }
       try {
         await access(base, constants.F_OK);
-        skipped.push({ name, reason: "no-meta" });
+        skipped.push({ name, reason: "no-meta", ...(await readFilterMetadata(base)) });
       } catch {
         // The run was removed between readdir and the metadata check.
       }
@@ -439,6 +478,34 @@ export class RunStore {
   }
 }
 
+async function readFilterMetadata(
+  base: string,
+): Promise<Pick<RunStoreSkipped, "engine" | "directory">> {
+  let metadata: Record<string, unknown> = {};
+  try {
+    const parsed: unknown = JSON.parse(await readFile(join(base, "meta.json"), "utf8"));
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed))
+      metadata = parsed as Record<string, unknown>;
+  } catch {
+    /* Fall through to legacy marker files. */
+  }
+
+  const engineValue =
+    typeof metadata.engine === "string"
+      ? metadata.engine
+      : (await readFile(join(base, "engine"), "utf8").catch(() => "")).trim();
+  const directoryValue =
+    typeof metadata.directory === "string"
+      ? metadata.directory
+      : (await readFile(join(base, "dir"), "utf8").catch(() => "")).trim();
+  return {
+    ...(ENGINE_NAMES.includes(engineValue as EngineName)
+      ? { engine: engineValue as EngineName }
+      : {}),
+    ...(directoryValue ? { directory: directoryValue } : {}),
+  };
+}
+
 function isPidAlive(pid: number): boolean {
   try {
     process.kill(pid, 0);
@@ -455,7 +522,7 @@ function isRunMeta(value: unknown, name: string): value is RunMeta {
     meta.schemaVersion === 1 &&
     meta.name === name &&
     typeof meta.engine === "string" &&
-    meta.engine.length > 0 &&
+    ENGINE_NAMES.includes(meta.engine as EngineName) &&
     typeof meta.directory === "string" &&
     typeof meta.model === "string" &&
     typeof meta.mode === "string" &&
@@ -465,6 +532,7 @@ function isRunMeta(value: unknown, name: string): value is RunMeta {
     Number.isFinite(Date.parse(meta.createdAt)) &&
     typeof meta.updatedAt === "string" &&
     Number.isFinite(Date.parse(meta.updatedAt)) &&
-    (meta.onComplete === undefined || typeof meta.onComplete === "string")
+    (meta.onComplete === undefined || typeof meta.onComplete === "string") &&
+    (meta.controls === undefined || isHarnessControls(meta.controls))
   );
 }

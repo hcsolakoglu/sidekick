@@ -62,6 +62,7 @@ export async function migrateCommand(args: string[], store: RunStore): Promise<n
   if (batch) output.quarantineRoot = batch.root;
   const entries = scan.entries.filter((entry) => !selected || selected.has(entry.name));
   const seen = new Set(entries.map((entry) => entry.name));
+  if (apply && entries.length) await store.initialize();
 
   for (const name of positionals) {
     if (!seen.has(name)) output.skipped.push({ name, reason: "not-legacy" });
@@ -138,6 +139,7 @@ async function restoreCommand(
     skipped: [] as Array<{ name: string; reason: string }>,
     errors: [] as Array<{ name: string; message: string }>,
   };
+  if (apply) await store.initialize();
   for (const name of names) {
     try {
       const candidates = await findQuarantinedRuns(store.root, name);

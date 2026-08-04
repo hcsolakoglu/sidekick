@@ -2,6 +2,12 @@ import { readdir } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { getEngine } from "./engines/index.js";
+import {
+  evidencedToolVersion,
+  hasLegacyControls,
+  resolveControls,
+  type HarnessControls,
+} from "./controls.js";
 import { commandOverride } from "./engines/shared.js";
 import type { WorkerAction } from "./engines/types.js";
 import { launchWorker, processIdentityMatches, runProcess, stopProcess } from "./process.js";
@@ -79,6 +85,17 @@ export async function withEngineSlot<T>(
   });
 }
 
+export async function withDirectoryDiscoveryLock<T>(
+  store: RunStore,
+  engine: string,
+  directory: string,
+  callback: () => Promise<T>,
+): Promise<T> {
+  const digest = createHash("sha256").update(directory).digest("hex").slice(0, 20);
+  const lockName = `discover-${engine}-${digest}`;
+  return store.withDiscoveryLock(lockName, callback);
+}
+
 export async function forceStop(store: RunStore, record: RunRecord): Promise<void> {
   if (record.pid && (await processIdentityMatches(record.pid, record.identity)))
     await stopProcess(record.pid);
@@ -105,6 +122,34 @@ export async function executeWorker(
   const prompt = await store.readText(promptFile);
   const outputFile = join(turn, "last.txt");
   const engine = getEngine(record.meta.engine);
+  let controls: HarnessControls;
+  const needsControlResolution = !record.meta.controls || hasLegacyControls(record.meta.controls);
+  try {
+    controls = needsControlResolution
+      ? resolveControls({
+          engine: record.meta.engine,
+          model: record.meta.model,
+          mode: record.meta.mode,
+          action: "initial",
+          toolVersion: evidencedToolVersion(record.meta.engine),
+        })
+      : (record.meta.controls as HarnessControls);
+  } catch (error) {
+    const code = error instanceof CliError && error.exitCode > 0 ? error.exitCode : 2;
+    await store.withLock(name, () =>
+      store.complete(
+        name,
+        turn,
+        code,
+        record.session,
+        `sidekick: control preflight failed: ${error instanceof Error ? error.message : String(error)}\n`,
+        "died",
+      ),
+    );
+    return code;
+  }
+  if (needsControlResolution)
+    await store.withLock(name, () => store.updateMeta(name, { controls }));
   const context = {
     action,
     session: record.session,
@@ -113,6 +158,7 @@ export async function executeWorker(
     outputFile,
     model: record.meta.model,
     mode: record.meta.mode,
+    controls,
     delayMs: Number(process.env.SIDEKICK_MOCK_DELAY_MS ?? 20),
     env: process.env,
   };
@@ -158,8 +204,12 @@ export async function executeWorker(
   };
   try {
     if (action !== "resume" && ["devin", "hermes"].includes(record.meta.engine)) {
-      const digest = createHash("sha256").update(record.meta.directory).digest("hex").slice(0, 20);
-      return await store.withLock(`discover-${record.meta.engine}-${digest}`, execute);
+      return await withDirectoryDiscoveryLock(
+        store,
+        record.meta.engine,
+        record.meta.directory,
+        execute,
+      );
     }
     return await execute();
   } catch (error) {

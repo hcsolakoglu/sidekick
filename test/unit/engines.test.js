@@ -5,6 +5,7 @@ import { devinEngine } from "../../dist/core/engines/devin.js";
 import { claudeEngine } from "../../dist/core/engines/claude.js";
 import { hermesEngine } from "../../dist/core/engines/hermes.js";
 import { splitCommand } from "../../dist/core/engines/shared.js";
+import { createControls } from "../../dist/core/controls.js";
 
 const context = {
   action: "spawn",
@@ -38,6 +39,27 @@ test("engine builders use argv arrays and expected prompt transport", () => {
   assert.equal(claude.stdin, "hello");
   const hermes = hermesEngine.build(context);
   assert.deepEqual(hermes.args.slice(-2), ["--oneshot", "hello"]);
+});
+
+test("Claude controls emit permission and effort only through native flags", () => {
+  const controls = createControls({
+    engine: "claude",
+    provider: "native",
+    transport: "cli-subprocess",
+    permission: "accept-edits",
+    effort: "high",
+    action: "initial",
+  });
+  const built = claudeEngine.build({ ...context, controls });
+  assert.deepEqual(built.args.slice(0, 10), [
+    "--print",
+    "--output-format",
+    "json",
+    "--permission-mode",
+    "acceptEdits",
+    "--effort",
+    "high",
+  ]);
 });
 
 test("engine command environment override precedes default", () => {

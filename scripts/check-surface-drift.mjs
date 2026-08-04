@@ -9,7 +9,7 @@ const snapshotPath = join(root, "docs", "cli-surface.json");
 function flagsIn(value) {
   return [
     ...new Set(
-      [...value.matchAll(/(?:^|[\s[])(--[a-z][a-z0-9-]*|-[a-z])(?=[\s,\]])/g)].map(
+      [...value.matchAll(/(?:^|[\s[])(--[a-z][a-z0-9-]*|-[a-z])(?=[\s,\]]|$)/g)].map(
         (match) => match[1],
       ),
     ),

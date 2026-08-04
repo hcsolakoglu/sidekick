@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- Versioned harness control evidence, immutable `RunMeta.controls`, fail-closed native preflight, and `capabilities --json` reporting.
+- Separate `--effort`, `--permission`, `--sandbox`, `--workspace-trust`, `--provider`, and `--transport` inputs for spawn/adopt; `send` remains control-immutable.
 - Bounded `status` history with active-run visibility, `--all`, `--limit`, `--running`, recency ordering, and truncation metadata.
 - Summary-only state scans that avoid loading full `out.log` files for status, retention, concurrency, and unnamed wait discovery.
 - Safe `clean --dry-run` planning with explicit `wouldRemove` output and diagnostics for legacy or unreadable state directories.
@@ -21,6 +23,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- Legacy `--mode` is validated as a compatibility projection; requested/applied/effective control observations preserve native argv/config provenance and runtime tool-version evidence.
+- Spawn/adopt controls are preflighted before prompt/cwd/discovery/store side effects; Codex resume uses config overrides rather than unsupported resume flags.
 - Status and retention scans now report skipped legacy or unreadable run directories instead of silently hiding them; only readable terminal records are eligible for cleanup.
 - Worker completion and dead-worker repair now serialize terminal state publication through per-run locks.
 - Engine concurrency accounting now uses live process identity probes without mutating run state while holding the capacity lock; status, wait, and clean remain the repair paths.
