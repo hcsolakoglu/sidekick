@@ -53,3 +53,24 @@ test("capabilities resolves exact Claude model effort value sets", () => {
     false,
   );
 });
+
+test("capabilities scopes model-dependent gates per engine", () => {
+  const single = run(["capabilities", "codex", "--model", "claude-opus-4-7", "--json"]);
+  assert.equal(single.status, 2);
+  assert.equal(single.stdout, "");
+  assert.match(single.stderr, /model-dependent|unverified/iu);
+
+  const multi = run(["capabilities", "claude", "codex", "--model", "claude-opus-4-7", "--json"]);
+  assert.equal(multi.status, 2);
+  assert.equal(multi.stdout, "");
+  assert.match(multi.stderr, /codex\/effort|model-dependent/iu);
+
+  const verified = run(["capabilities", "codex", "--model", "gpt-5.3-codex", "--json"]);
+  assert.equal(verified.status, 0, verified.stderr);
+  const value = JSON.parse(verified.stdout);
+  assert.ok(
+    value.capabilities.some(
+      (entry) => entry.engine === "codex" && entry.axis === "effort" && entry.modelDependent,
+    ),
+  );
+});

@@ -992,6 +992,7 @@ export function capabilityKey(entry: CapabilityRecord): string {
 }
 
 export function createControls(input: ResolveControlsInput): HarnessControls {
+  const action = input.action;
   const mode = input.mode ?? "";
   const permission = input.permission ?? permissionFromLegacy(input.engine, mode);
   const sandbox = input.sandbox ?? sandboxFromLegacy(input.engine, mode);
@@ -999,12 +1000,10 @@ export function createControls(input: ResolveControlsInput): HarnessControls {
   const provider = input.provider ?? "";
   const transport = input.transport ?? DEFAULT_TRANSPORT;
   const effort = input.effort ?? "";
+  const workerAction = action === "initial" || action === "resume" || action === "fallback";
 
   return {
-    model: observation(
-      model || null,
-      model ? applied("cli-flag", model, "native-argv", "--model", model) : null,
-    ),
+    model: modelObservation(input.engine, model, action, workerAction),
     provider: observation(
       provider || null,
       provider ? applied("none", provider, "adapter", undefined, provider) : null,
@@ -1014,20 +1013,28 @@ export function createControls(input: ResolveControlsInput): HarnessControls {
       applied("none", transport, "adapter", undefined, transport),
       "applied",
     ),
-    effort: effortObservation(input.engine, effort, input),
-    permission: permissionObservation(input.engine, permission),
-    sandbox: sandboxObservation(input.engine, sandbox),
+    effort: effortObservation(input.engine, effort, input, action),
+    permission: permissionObservation(input.engine, permission, action, workerAction),
+    sandbox: sandboxObservation(input.engine, sandbox, action),
     workspaceTrust: booleanObservation(
       input.workspaceTrust,
       input.workspaceTrust === undefined
         ? null
-        : applied(
-            "cli-flag",
-            input.workspaceTrust,
-            "native-argv",
-            "--respect-workspace-trust",
-            String(input.workspaceTrust),
-          ),
+        : action === "adopt"
+          ? applied(
+              "none",
+              input.workspaceTrust,
+              "adapter",
+              undefined,
+              String(input.workspaceTrust),
+            )
+          : applied(
+              "cli-flag",
+              input.workspaceTrust,
+              "native-argv",
+              "--respect-workspace-trust",
+              String(input.workspaceTrust),
+            ),
     ),
     agentProfile: observation(input.agentProfile ?? null, null),
     budget: observation(input.budget ?? null, null),
@@ -1035,12 +1042,50 @@ export function createControls(input: ResolveControlsInput): HarnessControls {
   };
 }
 
+/** Rebuild applied mechanisms for a later worker action without changing requested values. */
+export function reprojectControls(
+  controls: HarnessControls,
+  engine: EngineName,
+  action: ControlAction,
+): HarnessControls {
+  const input: ResolveControlsInput = {
+    engine,
+    action,
+    model: controls.model.requested ?? "",
+    transport: controls.transport.requested ?? DEFAULT_TRANSPORT,
+  };
+  if (controls.provider.requested) input.provider = controls.provider.requested;
+  if (controls.effort.requested) input.effort = controls.effort.requested;
+  if (controls.permission.requested) input.permission = controls.permission.requested;
+  if (controls.sandbox.requested !== null && controls.sandbox.requested !== undefined)
+    input.sandbox = controls.sandbox.requested;
+  if (controls.workspaceTrust.requested !== null && controls.workspaceTrust.requested !== undefined)
+    input.workspaceTrust = controls.workspaceTrust.requested;
+  if (controls.agentProfile.requested) input.agentProfile = controls.agentProfile.requested;
+  if (controls.budget.requested) input.budget = controls.budget.requested;
+  if (controls.cwdRestore.requested !== null && controls.cwdRestore.requested !== undefined)
+    input.cwdRestore = controls.cwdRestore.requested;
+  return createControls(input);
+}
+
 export function createLegacyControls(input: ResolveControlsInput): HarnessControls {
-  const controls = createControls(input);
-  return Object.fromEntries(
+  // Legacy dirs only carried model/mode (and engine). Do not invent transport intent.
+  const { transport: _, ...rest } = input;
+  void _;
+  const controls = createControls(rest);
+  const stamped = Object.fromEntries(
     CONTROL_AXES.map((axis) => {
       const current = controls[axis];
-      if (!current.applied) return [axis, current];
+      if (current.requested === null && !current.applied) return [axis, current];
+      if (!current.applied) {
+        return [
+          axis,
+          {
+            ...current,
+            status: current.requested === null ? "unknown" : "requested",
+          },
+        ];
+      }
       return [
         axis,
         {
@@ -1050,7 +1095,11 @@ export function createLegacyControls(input: ResolveControlsInput): HarnessContro
         },
       ];
     }),
-  ) as HarnessControls;
+  ) as unknown as HarnessControls;
+  return {
+    ...stamped,
+    transport: observation<Transport>(null, null),
+  };
 }
 
 export function hasLegacyControls(controls: HarnessControls): boolean {
@@ -1186,13 +1235,37 @@ function normalizeSandbox(value: string | boolean | undefined): string | boolean
   return value;
 }
 
+function modelObservation(
+  engine: EngineName,
+  model: string,
+  action: ControlAction,
+  workerAction: boolean,
+): ControlObservation<string> {
+  if (model) {
+    if (action === "adopt")
+      return observation(model, applied("none", model, "adapter", undefined, model));
+    return observation(model, applied("cli-flag", model, "native-argv", "--model", model));
+  }
+  // Devin worker argv injects a default model when the user omitted --model.
+  if (engine === "devin" && workerAction)
+    return observation<string>(
+      null,
+      applied("cli-flag", "glm-5.2", "adapter", "--model", "glm-5.2"),
+      "applied",
+    );
+  return observation<string>(null, null);
+}
+
 function effortObservation(
   engine: EngineName,
   effort: string,
   input: ResolveControlsInput,
+  action: ControlAction,
 ): ControlObservation<string> {
   if (!effort) return observation<string>(null, null);
   if (effort === "auto") return observation<string>("auto", applied("omitted", null, "adapter"));
+  if (action === "adopt")
+    return observation(effort, applied("none", effort, "adapter", undefined, effort));
   if (engine === "devin")
     return observation(
       effort,
@@ -1211,8 +1284,23 @@ function effortObservation(
 function permissionObservation(
   engine: EngineName,
   value: string | undefined,
+  action: ControlAction,
+  workerAction: boolean,
 ): ControlObservation<string> {
-  if (!value) return observation<string>(null, null);
+  if (!value) {
+    // Devin worker argv injects --permission-mode auto when omitted.
+    if (engine === "devin" && workerAction)
+      return observation<string>(
+        null,
+        applied("cli-flag", "auto", "adapter", "--permission-mode", "auto"),
+        "applied",
+      );
+    return observation<string>(null, null);
+  }
+  if (action === "adopt") {
+    const native = engine === "devin" && value === "normal" ? "auto" : value;
+    return observation(value, applied("none", native, "adapter", undefined, native));
+  }
   if (engine === "devin") {
     const native = value === "normal" ? "auto" : value;
     return observation(
@@ -1235,12 +1323,21 @@ function permissionObservation(
 function sandboxObservation(
   engine: EngineName,
   value: string | boolean | undefined,
+  action: ControlAction,
 ): ControlObservation<string | boolean> {
   if (value === undefined || value === "") return observation<string | boolean>(null, null);
+  if (action === "adopt")
+    return observation(value, applied("none", value, "adapter", undefined, String(value)));
   if (engine === "devin" && value === true)
     return observation(true, applied("cli-flag", true, "native-argv", "--sandbox", "true"));
   if (engine === "devin" && value === false)
     return observation(false, applied("omitted", null, "adapter", undefined, "omitted"));
+  // Codex resume/fallback help omits --sandbox; the engine uses -c sandbox_mode=.
+  if (engine === "codex" && (action === "resume" || action === "fallback"))
+    return observation(
+      value,
+      applied("config-override", value, "native-config", "sandbox_mode", String(value)),
+    );
   return observation(value, applied("cli-flag", value, "native-argv", "--sandbox", String(value)));
 }
 

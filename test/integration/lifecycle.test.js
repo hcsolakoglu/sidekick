@@ -322,8 +322,9 @@ test("migrated legacy runs preserve controls through send fallback", async () =>
   const migrated = await runCli(["migrate", "legacy-send", "--apply", "--json"], { env });
   assert.equal(migrated.code, 0);
   const meta = JSON.parse(await readFile(join(home, "runs", "legacy-send", "meta.json"), "utf8"));
-  assert.equal(meta.controls.transport.applied.source, "legacy");
-  assert.equal(meta.controls.transport.status, "requested");
+  assert.equal(meta.controls.model.applied.source, "legacy");
+  assert.equal(meta.controls.model.status, "requested");
+  assert.equal(meta.controls.transport.requested, null);
 
   await runCli(["send", "legacy-send", "--", "continue"], { env });
   const result = JSON.parse(
@@ -339,6 +340,7 @@ test("migrated legacy runs preserve controls through send fallback", async () =>
   assert.equal(migratedMeta.controls.transport.requested, "cli-subprocess");
   assert.equal(migratedMeta.controls.transport.applied.source, "adapter");
   assert.equal(migratedMeta.controls.transport.status, "applied");
+  assert.notEqual(migratedMeta.controls.model.applied?.source, "legacy");
 });
 
 test("migrate quarantines unsupported legacy state but never moves running state", async () => {

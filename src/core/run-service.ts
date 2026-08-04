@@ -5,6 +5,7 @@ import { getEngine } from "./engines/index.js";
 import {
   evidencedToolVersion,
   hasLegacyControls,
+  reprojectControls,
   resolveControls,
   type HarnessControls,
 } from "./controls.js";
@@ -124,13 +125,15 @@ export async function executeWorker(
   const engine = getEngine(record.meta.engine);
   let controls: HarnessControls;
   const needsControlResolution = !record.meta.controls || hasLegacyControls(record.meta.controls);
+  const controlAction =
+    action === "resume" ? "resume" : action === "fallback" ? "fallback" : "initial";
   try {
     controls = needsControlResolution
       ? resolveControls({
           engine: record.meta.engine,
           model: record.meta.model,
           mode: record.meta.mode,
-          action: "initial",
+          action: controlAction,
           toolVersion: evidencedToolVersion(record.meta.engine),
         })
       : (record.meta.controls as HarnessControls);
@@ -150,6 +153,11 @@ export async function executeWorker(
   }
   if (needsControlResolution)
     await store.withLock(name, () => store.updateMeta(name, { controls }));
+  // Creation-time meta.controls.applied stays immutable; worker argv uses action-reprojected applied.
+  const workerControls =
+    !needsControlResolution && controlAction !== "initial"
+      ? reprojectControls(controls, record.meta.engine, controlAction)
+      : controls;
   const context = {
     action,
     session: record.session,
@@ -158,7 +166,7 @@ export async function executeWorker(
     outputFile,
     model: record.meta.model,
     mode: record.meta.mode,
-    controls,
+    controls: workerControls,
     delayMs: Number(process.env.SIDEKICK_MOCK_DELAY_MS ?? 20),
     env: process.env,
   };

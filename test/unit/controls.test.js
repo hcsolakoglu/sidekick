@@ -140,12 +140,63 @@ test("legacy controls are visibly provisional until worker preflight resolves th
   const controls = createLegacyControls({
     ...base,
     engine: "mock",
+    model: "legacy-model",
+    mode: "normal",
     action: "initial",
   });
   assert.equal(hasLegacyControls(controls), true);
-  assert.equal(controls.transport.applied?.source, "legacy");
-  assert.equal(controls.transport.status, "requested");
+  assert.equal(controls.model.applied?.source, "legacy");
+  assert.equal(controls.model.status, "requested");
+  assert.equal(controls.transport.requested, null);
+  assert.equal(controls.transport.applied, null);
   assert.equal(isHarnessControls(controls), true);
+});
+
+test("createControls is action-aware for Codex sandbox and adopt provenance", () => {
+  const initial = resolveControls({
+    engine: "codex",
+    model: "gpt-5.3-codex",
+    sandbox: "workspace-write",
+    action: "initial",
+    toolVersion: "codex-cli 0.146.0",
+  });
+  assert.equal(initial.sandbox.applied?.mechanism, "cli-flag");
+  assert.equal(initial.sandbox.applied?.key, "--sandbox");
+
+  const resume = resolveControls({
+    engine: "codex",
+    model: "gpt-5.3-codex",
+    sandbox: "workspace-write",
+    action: "resume",
+    toolVersion: "codex-cli 0.146.0",
+  });
+  assert.equal(resume.sandbox.applied?.mechanism, "config-override");
+  assert.equal(resume.sandbox.applied?.configPath, "sandbox_mode");
+
+  const adopted = resolveControls({
+    engine: "devin",
+    model: "glm-5-2",
+    permission: "normal",
+    action: "adopt",
+    toolVersion: "devin 3000.3.27",
+  });
+  assert.equal(adopted.permission.applied?.mechanism, "none");
+  assert.equal(adopted.permission.applied?.source, "adapter");
+  assert.equal(adopted.model.applied?.mechanism, "none");
+});
+
+test("Devin worker defaults are recorded as adapter-applied when omitted", () => {
+  const controls = resolveControls({
+    engine: "devin",
+    action: "initial",
+    toolVersion: "devin 3000.3.27",
+  });
+  assert.equal(controls.model.requested, null);
+  assert.equal(controls.model.applied?.value, "glm-5.2");
+  assert.equal(controls.model.applied?.source, "adapter");
+  assert.equal(controls.permission.requested, null);
+  assert.equal(controls.permission.applied?.value, "auto");
+  assert.equal(controls.permission.applied?.source, "adapter");
 });
 test("Devin permission and sandbox use the required cross-product oracle", () => {
   const autonomous = resolveControls({

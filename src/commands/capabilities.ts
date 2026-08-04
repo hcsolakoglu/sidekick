@@ -32,31 +32,39 @@ export function capabilitiesCommand(args: string[]): number {
     runtimeVersions.set(engine, evidencedToolVersion(engine));
 
   const allRecords = capabilityRegistry.filter((entry) => selected.includes(entry.engine));
-  let exactNativeModel = false;
   if (model) {
-    exactNativeModel = allRecords.some(
-      (entry) => entry.model === model && entry.support === "native",
-    );
-    const unresolved = allRecords.find(
-      (entry) =>
-        entry.model === "*" &&
-        entry.modelDependent &&
-        entry.support === "native" &&
-        !exactNativeModel &&
-        !entry.verifiedModels?.includes(model),
-    );
-    if (unresolved)
-      throw new CliError(
-        `model-dependent capability is unverified: ${model} (${unresolved.engine}/${unresolved.axis})`,
-        2,
+    for (const engine of selected as EngineName[]) {
+      const engineRecords = allRecords.filter((entry) => entry.engine === engine);
+      const exactNativeModel = engineRecords.some(
+        (entry) => entry.model === model && entry.support === "native",
       );
+      const unresolved = engineRecords.find(
+        (entry) =>
+          entry.model === "*" &&
+          entry.modelDependent &&
+          entry.support === "native" &&
+          !exactNativeModel &&
+          !entry.verifiedModels?.includes(model),
+      );
+      if (unresolved)
+        throw new CliError(
+          `model-dependent capability is unverified: ${model} (${unresolved.engine}/${unresolved.axis})`,
+          2,
+        );
+    }
   }
   const records = model
-    ? allRecords.filter(
-        (entry) =>
-          entry.model === model ||
-          (entry.model === "*" && !(entry.modelDependent && exactNativeModel)),
-      )
+    ? allRecords.filter((entry) => {
+        if (entry.model === model) return true;
+        if (entry.model !== "*") return false;
+        if (!entry.modelDependent) return true;
+        const exactForEngine = allRecords.some(
+          (other) =>
+            other.engine === entry.engine && other.model === model && other.support === "native",
+        );
+        if (exactForEngine) return false;
+        return entry.verifiedModels?.includes(model) === true;
+      })
     : allRecords;
 
   const output = {

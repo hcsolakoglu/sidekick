@@ -27,7 +27,8 @@ Use this file as the canonical rule list for AI agents and humans. Read [CONTRIB
 
 - Before delegation, run `sidekick doctor ENGINE`, then `sidekick capabilities ENGINE --model MODEL --json`; choose only controls whose exact engine/provider/model/transport/toolVersion/action record is native or simulated.
 - `--mode` remains a legacy compatibility input. It is not a universal permission, effort, sandbox, or reasoning field.
-- New runs persist one immutable `meta.controls` snapshot. `requested`, `applied`, and `effective` are distinct; adapter argv/config evidence is not provider/runtime effective evidence.
+- New runs persist one immutable `meta.controls` snapshot from the creation action (`initial`/`adopt`). `requested`, `applied`, and `effective` are distinct; adapter argv/config evidence is not provider/runtime effective evidence.
+- `applied` describes the creation-time application path. Resume/fallback turns may emit different native mechanisms for the same requested values; each turn's `command.json` is the authoritative argv for that turn. Worker builds reproject applied mechanisms for the current action without rewriting the creation snapshot.
 - Explicit unsupported, unverified, invalid, or value-level mismatched controls fail closed with exit code `2` before prompt, cwd, discovery, lock, store, or worker side effects.
 - `status --json` and spawn/adopt JSON acknowledgements expose control state. `command.json` records the exact argv sent to the engine.
 
