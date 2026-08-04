@@ -109,8 +109,11 @@ Run `sidekick --help` for the compact command reference.
 - `requested` is user intent, `applied` is the exact native flag/config/omission Sidekick selected, and `effective` is null until the provider or runtime reports an effective value. An argv flag alone never proves `effective`.
 - Explicit unsupported, malformed, version-mismatched, or model-dependent-unverified values fail before prompt consumption, cwd resolution, discovery, run creation, or worker start with exit code 2. Silent downgrade is forbidden.
 - Use `sidekick capabilities ENGINE --model MODEL --json` to inspect versioned evidence. Its registry key is `(engine, provider, model, transport, toolVersion, axis, action)` and reports `native`, `unsupported`, `simulated`, or `unverified` support.
+- Codex `--effort` accepts `minimal|low|medium|high|xhigh|max` for any `--model` via `-c model_reasoning_effort=...`. Sidekick does not maintain a curated Codex model allowlist; the provider may ignore a level the selected model does not support.
+- Hermes oneshot currently has no public per-run effort flag. Global Hermes `agent.reasoning_effort` is not treated as a Sidekick per-run control; explicit Hermes non-auto `--effort` fails closed until a native per-run surface exists.
+- Claude `--effort` is native but exact-model: inspect `capabilities claude --model MODEL --json` before requesting effort.
 - Devin's family slug `glm-5.2` and variant UID `glm-5-2` are distinct identifiers. Sidekick never silently aliases one to the other. `normal` is Devin's canonical default and maps to native `auto`; `smart` is not advertised for current evidence.
-- `send` accepts no control overrides. Resume/fallback reuses persisted controls rather than accepting a new mode, effort, permission, sandbox, provider, or transport value.
+- `send` accepts no control overrides. Resume/fallback reuses persisted controls rather than accepting a new mode, effort, permission, sandbox, provider, or transport value. Creation-time `applied` provenance stays on the run snapshot; each turn's `command.json` is the authoritative argv for that turn.
 
 ## Examples
 
@@ -118,8 +121,9 @@ Prompts are argv values, never shell-interpolated by sidekick. `--` makes a prom
 
 ```sh
 sidekick spawn claude migration --model sonnet --mode accept-edits -- "Inspect only; do not edit"
+sidekick spawn codex hard-review --model gpt-5.6 --effort max --sandbox danger-full-access -- "Adversarial review only; do not edit"
 sidekick spawn devin frontend --dir "C:\Work Files\app" -- "Run the UI tests"
-sidekick wait migration frontend --all --timeout 900 --quiet
+sidekick wait migration frontend hard-review --all --timeout 900 --quiet
 sidekick status --json
 sidekick status --limit 10 --running
 sidekick status --all --json

@@ -82,7 +82,7 @@ $ codex exec resume --help
 Official config reference records:
 
 - `approval_policy`: `untrusted | on-request | never | granular`
-- `model_reasoning_effort`: `minimal | low | medium | high | xhigh`, model-dependent
+- `model_reasoning_effort`: `minimal | low | medium | high | xhigh | max` (OpenAI reasoning docs include `max`; Sidekick value-gates these for any `--model` without a curated model allowlist; provider/model may ignore unsupported levels)
 - `sandbox_mode`: `read-only | workspace-write | danger-full-access`
 
 Therefore initial Codex sandbox uses the native `--sandbox` flag. Resume must use an exact `-c sandbox_mode=...` and, where selected, `-c approval_policy=...` fixture. A resume `--sandbox` flag is not emitted.
@@ -99,7 +99,7 @@ EXIT=0
 --permission-mode accepts acceptEdits, auto, bypassPermissions, manual, dontAsk, plan.
 ```
 
-Sidekick keeps the canonical permission value `accept-edits` and maps it to the native `acceptEdits` spelling. Effort remains model-dependent: the local flag/value surface is evidenced, but no selected model catalog evidence is asserted here, so unresolved explicit effort requests still fail closed.
+Sidekick keeps the canonical permission value `accept-edits` and maps it to the native `acceptEdits` spelling. Claude effort is exact-model per official model-config docs: supported models get their documented value sets; unresolved models fail closed on explicit effort.
 
 ## Capability evidence matrix
 
@@ -123,7 +123,7 @@ The registry key is `(engine, provider, model, transport, toolVersion, axis, act
 | Codex 0.146.0       | `sandbox=read-only                                                                    | workspace-write | danger-full-access`              | initial                                                                                      | `native`                                                                                                                  | `exec --sandbox VALUE` | Local subcommand help.            |
 | Codex 0.146.0       | `sandbox=...`                                                                         | resume          | `native` pending exact fixture   | `exec resume -c sandbox_mode=VALUE`                                                          | Resume help accepts `-c`; exact argv fixture is required before promotion.                                                |
 | Codex 0.146.0       | `approval_policy`                                                                     | initial/resume  | `native` pending exact fixture   | `-c approval_policy=VALUE`                                                                   | Official config reference plus local `-c` parser surface.                                                                 |
-| Codex 0.146.0       | `effort=minimal                                                                       | low             | medium                           | high                                                                                         | xhigh`                                                                                                                    | initial/resume         | `native` model-dependent          | `-c model_reasoning_effort=VALUE` | Selected model/provider/transport record is mandatory. |
+| Codex 0.146.0       | `effort=minimal                                                                       | low             | medium                           | high                                                                                         | xhigh                                                                                                                     | max`                   | initial/resume                    | `native` value-gated | `-c model_reasoning_effort=VALUE` for any `--model` | No curated model allowlist; provider/model may ignore unsupported levels. OpenAI reasoning docs include `max`. |
 | Codex 0.146.0       | resume `--sandbox`                                                                    | resume          | `unsupported`                    | Exit 2 / no flag emission                                                                    | Local `codex exec resume --help` omits `--sandbox`.                                                                       |
 | Hermes 0.19.0       | `model`                                                                               | initial/resume  | `native`                         | `--model MODEL`; resume `--resume SESSION`                                                   | Local adapter and CLI surface.                                                                                            |
 | Hermes 0.19.0       | effort/permission/sandbox                                                             | initial/resume  | `unverified`                     | No public per-run native flag in current Sidekick adapter; explicit non-auto request exits 2 | Global Hermes config is not silently treated as per-run immutable control.                                                |

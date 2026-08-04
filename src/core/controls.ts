@@ -128,7 +128,7 @@ const CLAUDE_EFFORT_ALL_MODELS = [
 ] as const;
 const CLAUDE_EFFORT_LIMITED_MODELS = ["claude-opus-4-6", "claude-sonnet-4-6"] as const;
 /** Codex CLI accepts these via -c model_reasoning_effort=... for any --model. */
-const CODEX_EFFORT_VALUES = ["minimal", "low", "medium", "high", "xhigh"] as const;
+const CODEX_EFFORT_VALUES = ["minimal", "low", "medium", "high", "xhigh", "max"] as const;
 
 function claudeEffortRecords(action: ControlAction): CapabilityRecord[] {
   const all = CLAUDE_EFFORT_ALL_MODELS.map((model) =>

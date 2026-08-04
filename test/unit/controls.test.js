@@ -265,12 +265,23 @@ test("Codex effort is value-gated for any model, not a curated model allowlist",
   });
   assert.equal(sol.effort.applied?.value, "high");
 
+  const maxEffort = resolveControls({
+    ...base,
+    engine: "codex",
+    model: "gpt-5.6",
+    effort: "max",
+    action: "initial",
+    toolVersion: "codex-cli 0.146.0",
+  });
+  assert.equal(maxEffort.effort.applied?.value, "max");
+  assert.equal(maxEffort.effort.applied?.configPath, "model_reasoning_effort");
+
   assert.throws(
     () =>
       resolveControls({
         ...base,
         engine: "codex",
-        effort: "max",
+        effort: "ultra",
         model: "gpt-5.6",
         toolVersion: "codex-cli 0.146.0",
       }),

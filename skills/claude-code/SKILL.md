@@ -14,7 +14,7 @@ description: Orchestrate persistent Codex, Devin, Claude Code, Hermes, or mock w
 
 Use `sidekick adopt ENGINE NAME --session ID --dir PATH` for an existing session. Use `sidekick tail NAME` for live output and `sidekick cancel NAME` to stop the full process tree while keeping the session resumable. Use `send --force` only when replacing an active turn.
 
-Sidekick persists `requested`, `applied`, and `effective` control observations. An argv flag does not prove provider-reported effective state. Unsupported, malformed, model-dependent-unverified, or runtime-version-mismatched explicit values fail closed with exit 2. Devin family slug `glm-5.2` and variant UID `glm-5-2` are distinct and are never silently aliased; do not use `--mode high` as effort.
+Sidekick persists `requested`, `applied`, and `effective` control observations. An argv flag does not prove provider-reported effective state. Unsupported, malformed, model-dependent-unverified, or runtime-version-mismatched explicit values fail closed with exit 2. Codex effort is value-gated (`minimal|low|medium|high|xhigh|max`) for any model. Claude effort is exact-model; inspect capabilities before requesting it. Hermes has no public per-run effort flag. Devin family slug `glm-5.2` and variant UID `glm-5-2` are distinct and are never silently aliased; do not use `--mode high` as effort.
 
 Choose an engine by task and local availability: use Codex or Claude for focused repository work, Devin for broad autonomous implementation, Hermes for general tool-rich work, and mock only for deterministic workflow tests. Split independent tasks; keep tightly coupled edits with one worker. Give every delegate an exact scope, constraints, verification command, and expected response.
 

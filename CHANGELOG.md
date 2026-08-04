@@ -24,6 +24,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Changed
 
 - Legacy `--mode` is validated as a compatibility projection; requested/applied/effective control observations preserve native argv/config provenance and runtime tool-version evidence.
+- Codex `--effort` is value-gated for any model (`minimal|low|medium|high|xhigh|max`) without a curated model allowlist; `max` is accepted and forwarded via `-c model_reasoning_effort`.
+- Hermes per-run `--effort` remains unverified/fail-closed: oneshot has no public native effort flag, and Sidekick does not rewrite global Hermes config to simulate one.
 - Spawn/adopt controls are preflighted before prompt/cwd/discovery/store side effects; Codex resume uses config overrides rather than unsupported resume flags.
 - Status and retention scans now report skipped legacy or unreadable run directories instead of silently hiding them; only readable terminal records are eligible for cleanup.
 - Worker completion and dead-worker repair now serialize terminal state publication through per-run locks.
