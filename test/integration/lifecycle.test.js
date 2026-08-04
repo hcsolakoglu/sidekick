@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { join } from "node:path";
-import { readFile, stat } from "node:fs/promises";
+import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { pidFor, root, runCli, temporary } from "../helpers.js";
 
 async function waitForFileMatch(path, pattern, timeoutMs = 2_000) {
@@ -12,6 +12,29 @@ async function waitForFileMatch(path, pattern, timeoutMs = 2_000) {
     await new Promise((resolve) => setTimeout(resolve, 25));
   }
   assert.match(await readFile(path, "utf8").catch(() => ""), pattern);
+}
+
+async function writeLegacyRun(home, name, status = "done") {
+  const base = join(home, "runs", name);
+  await mkdir(join(base, "run-1"), { recursive: true });
+  const files = {
+    engine: "mock\n",
+    dir: `${home}\n`,
+    active_run: "1\n",
+    status: `${status}\n`,
+    exit: "0\n",
+    session: "legacy-session\n",
+    mode: "normal\n",
+    model: "legacy-model\n",
+    prompt: "legacy prompt\n",
+    "out.log": "legacy output\n",
+  };
+  for (const [file, value] of Object.entries(files)) await writeFile(join(base, file), value);
+  await writeFile(join(base, "run-1", "prompt"), "legacy prompt\n");
+  await writeFile(join(base, "run-1", "out.log"), "legacy output\n");
+  await writeFile(join(base, "run-1", "status"), `${status}\n`);
+  await writeFile(join(base, "run-1", "exit"), "0\n");
+  return base;
 }
 
 test("spawn wait result and send resume persist a session", async () => {
@@ -88,6 +111,58 @@ test("adopt creates a completed resumable run", async () => {
   assert.equal(result.session, "existing-123");
 });
 
+test("status keeps active runs visible while bounding terminal history", async () => {
+  const sandbox = await temporary();
+  const env = { SIDEKICK_HOME: join(sandbox, "home"), SIDEKICK_MOCK_DELAY_MS: "10000" };
+  await Promise.all(
+    Array.from({ length: 25 }, (_, index) =>
+      runCli(
+        [
+          "adopt",
+          "mock",
+          `terminal-${String(index).padStart(2, "0")}`,
+          "--session",
+          `session-${index}`,
+          "--dir",
+          sandbox,
+        ],
+        { env },
+      ),
+    ),
+  );
+  await runCli(["spawn", "mock", "active", "--dir", sandbox, "--", "working"], { env });
+
+  const bounded = JSON.parse((await runCli(["status", "--json"], { env })).stdout);
+  assert.equal(bounded.total, 26);
+  assert.equal(bounded.shown, 21);
+  assert.equal(bounded.truncated, true);
+  assert.ok(bounded.runs.some((run) => run.name === "active"));
+
+  const limited = JSON.parse((await runCli(["status", "--limit", "3", "--json"], { env })).stdout);
+  assert.equal(limited.shown, 4);
+  assert.equal(limited.runs[0].name, "active");
+
+  const runningOnly = JSON.parse(
+    (await runCli(["status", "--limit", "0", "--json"], { env })).stdout,
+  );
+  assert.equal(runningOnly.total, 26);
+  assert.equal(runningOnly.shown, 1);
+  assert.deepEqual(
+    runningOnly.runs.map((run) => run.name),
+    ["active"],
+  );
+
+  const running = JSON.parse((await runCli(["status", "--running", "--json"], { env })).stdout);
+  assert.deepEqual(
+    running.runs.map((run) => run.name),
+    ["active"],
+  );
+
+  const complete = JSON.parse((await runCli(["status", "--all", "--json"], { env })).stdout);
+  assert.equal(complete.shown, 26);
+  await runCli(["cancel", "active"], { env });
+});
+
 test("clean removes terminal runs and skips active runs", async () => {
   const sandbox = await temporary();
   const env = { SIDEKICK_HOME: join(sandbox, "home"), SIDEKICK_MOCK_DELAY_MS: "10000" };
@@ -105,6 +180,159 @@ test("clean removes terminal runs and skips active runs", async () => {
   await runCli(["send", "active", "--force", "--", "finish"], { env });
   await runCli(["wait", "active", "--timeout", "5", "--quiet"], { env });
   assert.equal((await runCli(["clean", "active"], { env })).stdout, "removed 1\n");
+});
+
+test("clean dry-run is non-destructive and surfaces legacy state", async () => {
+  const sandbox = await temporary();
+  const home = join(sandbox, "home");
+  const env = { SIDEKICK_HOME: home };
+  await runCli(["adopt", "mock", "finished", "--session", "done-1", "--dir", sandbox], { env });
+  const legacy = join(home, "runs", "legacy-only");
+  await mkdir(legacy, { recursive: true });
+  await writeFile(join(legacy, "engine"), "mock\n");
+  await writeFile(join(legacy, "status"), "done\n");
+
+  const planned = await runCli(["clean", "--dry-run", "--json"], { env });
+  assert.equal(planned.code, 0);
+  const plan = JSON.parse(planned.stdout);
+  assert.deepEqual(plan.removed, []);
+  assert.deepEqual(plan.wouldRemove, ["finished"]);
+  assert.deepEqual(plan.skipped, [{ name: "legacy-only", reason: "no-meta" }]);
+  assert.match(planned.stderr, /unreadable or legacy/u);
+  assert.match(await readFile(join(home, "runs", "finished", "meta.json"), "utf8"), /finished/u);
+  assert.match(await readFile(join(legacy, "status"), "utf8"), /done/u);
+});
+
+test("migrate previews and atomically converts legacy state idempotently", async () => {
+  const sandbox = await temporary();
+  const home = join(sandbox, "home");
+  const env = { SIDEKICK_HOME: home };
+  const legacy = await writeLegacyRun(home, "legacy-convert");
+
+  const planned = await runCli(["migrate", "--dry-run", "--json"], { env });
+  assert.equal(planned.code, 0);
+  assert.deepEqual(JSON.parse(planned.stdout), {
+    migrated: [],
+    wouldMigrate: ["legacy-convert"],
+    quarantined: [],
+    wouldQuarantine: [],
+    restored: [],
+    wouldRestore: [],
+    skipped: [],
+    errors: [],
+  });
+  await assert.rejects(readFile(join(legacy, "meta.json")));
+
+  const applied = await runCli(["migrate", "--apply", "--json"], { env });
+  assert.equal(applied.code, 0, applied.stderr);
+  assert.deepEqual(JSON.parse(applied.stdout).migrated, ["legacy-convert"]);
+  const record = JSON.parse((await runCli(["status", "--all", "--json"], { env })).stdout).runs[0];
+  const metadata = JSON.parse(await readFile(join(legacy, "meta.json"), "utf8"));
+  assert.deepEqual(
+    {
+      name: record.name,
+      engine: record.engine,
+      status: record.status,
+      exitCode: record.exitCode,
+      run: record.run,
+      session: record.session,
+      model: metadata.model,
+      mode: metadata.mode,
+    },
+    {
+      name: "legacy-convert",
+      engine: "mock",
+      status: "done",
+      exitCode: 0,
+      run: 1,
+      session: "legacy-session",
+      model: "legacy-model",
+      mode: "normal",
+    },
+  );
+  assert.match(await readFile(join(legacy, "status"), "utf8"), /^done\n$/u);
+  assert.match(await readFile(join(legacy, "session"), "utf8"), /^legacy-session\n$/u);
+
+  const repeated = await runCli(["migrate", "legacy-convert", "--apply", "--json"], { env });
+  assert.equal(repeated.code, 0);
+  assert.deepEqual(JSON.parse(repeated.stdout), {
+    migrated: [],
+    wouldMigrate: [],
+    quarantined: [],
+    wouldQuarantine: [],
+    restored: [],
+    wouldRestore: [],
+    skipped: [{ name: "legacy-convert", reason: "not-legacy" }],
+    errors: [],
+  });
+});
+
+test("migrate quarantines unsupported legacy state but never moves running state", async () => {
+  const sandbox = await temporary();
+  const home = join(sandbox, "home");
+  const env = { SIDEKICK_HOME: home };
+  const unsupported = await writeLegacyRun(home, "legacy-unsupported", "paused");
+  const running = await writeLegacyRun(home, "legacy-running", "running");
+
+  const planned = await runCli(["migrate", "--quarantine", "--json"], { env });
+  assert.equal(planned.code, 0);
+  const plan = JSON.parse(planned.stdout);
+  assert.deepEqual(plan.wouldMigrate, []);
+  assert.deepEqual(
+    plan.wouldQuarantine.map(({ name }) => name),
+    ["legacy-unsupported"],
+  );
+  assert.deepEqual(plan.skipped, [{ name: "legacy-running", reason: "running" }]);
+  assert.match(plan.quarantineRoot, /legacy-quarantine/u);
+  assert.match(await readFile(join(unsupported, "status"), "utf8"), /^paused\n$/u);
+
+  const applied = await runCli(["migrate", "--apply", "--quarantine", "--json"], { env });
+  assert.equal(applied.code, 0, applied.stderr);
+  const result = JSON.parse(applied.stdout);
+  assert.deepEqual(
+    result.quarantined.map(({ name }) => name),
+    ["legacy-unsupported"],
+  );
+  assert.deepEqual(result.skipped, [{ name: "legacy-running", reason: "running" }]);
+  await assert.rejects(readFile(join(home, "runs", "legacy-unsupported", "status")));
+  assert.match(await readFile(join(result.quarantined[0].path, "status"), "utf8"), /^paused\n$/u);
+  assert.match(await readFile(join(running, "status"), "utf8"), /^running\n$/u);
+
+  const restorePlan = await runCli(["migrate", "legacy-unsupported", "--restore", "--json"], {
+    env,
+  });
+  assert.equal(restorePlan.code, 0);
+  assert.deepEqual(JSON.parse(restorePlan.stdout).wouldRestore, ["legacy-unsupported"]);
+  const restored = await runCli(
+    ["migrate", "legacy-unsupported", "--restore", "--apply", "--json"],
+    { env },
+  );
+  assert.equal(restored.code, 0, restored.stderr);
+  assert.deepEqual(JSON.parse(restored.stdout).restored, ["legacy-unsupported"]);
+  assert.match(
+    await readFile(join(home, "runs", "legacy-unsupported", "status"), "utf8"),
+    /^paused\n$/u,
+  );
+});
+
+test("migrate skips invalid names and quarantines stale running state", async () => {
+  const sandbox = await temporary();
+  const home = join(sandbox, "home");
+  const env = { SIDEKICK_HOME: home };
+  const invalid = await writeLegacyRun(home, "legacy invalid", "paused");
+  const stale = await writeLegacyRun(home, "legacy-stale", "running");
+  await writeFile(join(stale, "pid"), "2147483647\n");
+
+  const applied = await runCli(["migrate", "--apply", "--quarantine", "--json"], { env });
+  assert.equal(applied.code, 0, applied.stderr);
+  const result = JSON.parse(applied.stdout);
+  assert.deepEqual(
+    result.quarantined.map(({ name }) => name),
+    ["legacy-stale"],
+  );
+  assert.deepEqual(result.skipped, [{ name: "legacy invalid", reason: "invalid-name" }]);
+  assert.match(await readFile(join(invalid, "status"), "utf8"), /^paused\n$/u);
+  assert.match(await readFile(join(result.quarantined[0].path, "status"), "utf8"), /^running\n$/u);
 });
 
 test("doctor reports machine-readable engine support and resolution", async () => {

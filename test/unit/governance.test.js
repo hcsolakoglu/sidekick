@@ -38,5 +38,5 @@ test("committed CLI surface and documentation pass the drift gate", () => {
       encoding: "utf8",
     },
   );
-  assert.match(output, /11 commands/);
+  assert.match(output, /12 commands/);
 });

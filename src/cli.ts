@@ -2,6 +2,7 @@ import { adoptCommand } from "./commands/adopt.js";
 import { cleanCommand } from "./commands/clean.js";
 import { cancelCommand } from "./commands/cancel.js";
 import { doctorCommand } from "./commands/doctor.js";
+import { migrateCommand } from "./commands/migrate.js";
 import { resultCommand } from "./commands/result.js";
 import { sendCommand } from "./commands/send.js";
 import { skillCommand } from "./commands/skill.js";
@@ -23,9 +24,10 @@ Usage:
   sidekick wait [NAME ...] [--all] [--timeout SECONDS] [--quiet] [--json]
   sidekick adopt ENGINE NAME --session ID [--dir PATH] [--model MODEL] [--mode MODE] [--json]
   sidekick tail NAME [-n LINES]
-  sidekick status [--json]
+  sidekick status [--all] [--limit N] [--running] [--json]
   sidekick result NAME [--json]
-  sidekick clean [NAME ...] [--older-than DUR] [--keep-last N] [--json]
+  sidekick clean [NAME ...] [--older-than DUR] [--keep-last N] [--dry-run] [--json]
+  sidekick migrate [NAME ...] [--apply] [--dry-run] [--quarantine] [--restore] [--json]
   sidekick cancel NAME [--json]
   sidekick doctor [ENGINE ...] [--json]
   sidekick skill install HARNESS [--force] [--json]
@@ -77,6 +79,8 @@ export async function run(argv: string[], store = new RunStore()): Promise<numbe
         return await resultCommand(args, store);
       case "clean":
         return await cleanCommand(args, store);
+      case "migrate":
+        return await migrateCommand(args, store);
       case "cancel":
         return await cancelCommand(args, store);
       case "doctor":

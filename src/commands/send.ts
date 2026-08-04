@@ -17,7 +17,7 @@ export async function sendCommand(args: string[], store: RunStore): Promise<numb
   const prompt = await promptFrom(promptParts);
   await store.withLock(name, async () => {
     if (!(await store.exists(name))) throw new CliError(`unknown run: ${name}`);
-    let record = await refresh(store, await store.read(name));
+    let record = await refresh(store, await store.read(name), undefined, false);
     if (record.status === "running") {
       if (!values.force)
         throw new CliError(`run is still running: ${name}; use --force to stop it and resend`);

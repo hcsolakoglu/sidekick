@@ -8,6 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- Bounded `status` history with active-run visibility, `--all`, `--limit`, `--running`, recency ordering, and truncation metadata.
+- Summary-only state scans that avoid loading full `out.log` files for status, retention, concurrency, and unnamed wait discovery.
+- Safe `clean --dry-run` planning with explicit `wouldRemove` output and diagnostics for legacy or unreadable state directories.
+- Explicit legacy run-state migration with dry-run-by-default planning, atomic metadata conversion, non-destructive quarantine, and collision-safe restore.
 - `sidekick doctor` engine installation, operating-system support, executable-resolution, and state-path diagnostics.
 - Cross-platform command-resolver and native Windows process-handling tests.
 - Identity-safe worker liveness, `cancel`, completion hooks, retention cleanup, bounded live logs, per-engine concurrency caps, and JSON lifecycle commands.
@@ -17,6 +21,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- Status and retention scans now report skipped legacy or unreadable run directories instead of silently hiding them; only readable terminal records are eligible for cleanup.
+- Worker completion and dead-worker repair now serialize terminal state publication through per-run locks.
+- Engine concurrency accounting now uses live process identity probes without mutating run state while holding the capacity lock; status, wait, and clean remain the repair paths.
 - Windows npm command shims are unwrapped to native or JavaScript entry points without shell interpolation.
 - Force resend terminates complete process trees on Windows and detached process groups on POSIX.
 - Atomic state replacement retries transient Windows filesystem sharing violations.

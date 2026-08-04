@@ -11,7 +11,7 @@ export async function cancelCommand(args: string[], store: RunStore): Promise<nu
   if (!name || positionals.length !== 1) throw new CliError("usage: sidekick cancel NAME [--json]");
   if (!(await store.exists(name))) throw new CliError(`unknown run: ${name}`);
   const record = await store.withLock(name, async () => {
-    const current = await refresh(store, await store.read(name));
+    const current = await refresh(store, await store.read(name), undefined, false);
     if (current.status === "running") await forceStop(store, current);
     return store.read(name);
   });
