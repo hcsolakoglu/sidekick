@@ -1,0 +1,65 @@
+name: Cross-platform CI
+
+on:
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+
+# Expensive OS compatibility coverage is scheduled weekly or started manually.
+concurrency:
+  group: cross-platform-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+        node: [20, 22, 24]
+    # Each scheduled/manual run covers all supported Node versions on both OSes.
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run format:check
+      - run: npm test
+      - run: npm run surface:check
+      - name: Packed-install smoke test
+        shell: pwsh
+        run: |
+          $smoke = Join-Path $env:RUNNER_TEMP "sidekick-pack-smoke"
+          New-Item -ItemType Directory -Force -Path $smoke | Out-Null
+          # prepack writes to stdout as well, so the tarball name cannot be read
+          # from it. Pack into an empty directory and pick the file up instead.
+          $packed = Join-Path $smoke "tarball"
+          New-Item -ItemType Directory -Force -Path $packed | Out-Null
+          npm run build
+          npm pack --ignore-scripts --pack-destination $packed | Out-Null
+          $tarball = Get-ChildItem -Path $packed -Filter *.tgz
+          if ($tarball.Count -ne 1) { throw "expected one tarball, found $($tarball.Count)" }
+          npm install --prefix $smoke $tarball.FullName
+          # Invoke the installed shim directly. `npm exec -- sidekick` falls back
+          # to downloading the unrelated public `sidekick` package when local
+          # resolution misses, which masks failures and runs untrusted code.
+          $bin = Join-Path $smoke "node_modules/.bin/sidekick"
+          if ($IsWindows) { $bin = "$bin.cmd" }
+          if (-not (Test-Path $bin)) { throw "packed install did not create $bin" }
+          & $bin --version
+          & $bin --help
+          $env:SIDEKICK_HOME = Join-Path $smoke "state"
+          & $bin spawn mock ci-roundtrip --dir $smoke -- "hello from CI"
+          $roundtrip = & $bin wait ci-roundtrip --timeout 10 --json | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or $roundtrip.status -ne "done" -or $roundtrip.exitCode -ne 0) {
+            throw "sidekick mock roundtrip failed: $($roundtrip | ConvertTo-Json -Compress)"
+          }
