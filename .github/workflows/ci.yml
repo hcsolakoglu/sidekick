@@ -5,12 +5,10 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
-  schedule:
-    - cron: "17 3 * * 1"
   workflow_dispatch:
 
-# PRs and main pushes use the Linux matrix. Cross-platform jobs run weekly or
-# on demand so compatibility remains covered without multiplying every PR.
+# Normal validation stays on Linux. Cross-platform compatibility runs from
+# the separate scheduled/manual workflow in cross-platform.yml.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -23,12 +21,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest]
         node: [20, 22, 24]
-    # Dependabot PRs get one representative Linux runtime. Human PRs and
-    # main pushes get all three supported Node versions on Linux. macOS and
-    # Windows run only on the weekly schedule or via workflow_dispatch.
-    if: ${{ (matrix.os == 'ubuntu-latest' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && (github.actor != 'dependabot[bot]' || matrix.node == 24) }}
+    # Every normal PR and main push runs all supported Node versions on Linux.
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
