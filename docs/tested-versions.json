@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "checkedAt": "2026-08-04",
+  "checkedAt": "2026-08-10",
   "harnesses": {
     "codex-cli": {
-      "testedVersion": "0.146.0",
+      "testedVersion": "0.147.0",
       "adapter": "src/core/engines/codex.ts",
       "latestStableSource": {
         "kind": "npm",

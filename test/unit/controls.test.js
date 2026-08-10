@@ -36,7 +36,7 @@ test("resolveControls maps Codex legacy workspace mode to a native applied obser
     transport: "cli-subprocess",
     mode: "workspace-write",
     action: "initial",
-    toolVersion: "codex-cli 0.146.0",
+    toolVersion: "codex-cli 0.147.0",
   });
   assert.equal(controls.sandbox.requested, "workspace-write");
   assert.equal(controls.sandbox.applied?.mechanism, "cli-flag");
@@ -49,7 +49,7 @@ test("resolveControls maps Codex legacy workspace mode to a native applied obser
     model: "gpt-5.3-codex",
     permission: "never",
     action: "initial",
-    toolVersion: "codex-cli 0.146.0",
+    toolVersion: "codex-cli 0.147.0",
   });
   assert.equal(permission.permission.applied?.configPath, "approval_policy");
 });
@@ -79,7 +79,7 @@ test("legacy Codex mode never emits an unsupported sandbox label", () => {
         model: "gpt-5.3-codex",
         mode: "high",
         action: "initial",
-        toolVersion: "codex-cli 0.146.0",
+        toolVersion: "codex-cli 0.147.0",
       }),
     (error) => error?.exitCode === 2 && /not accepted|unsupported/iu.test(error.message),
   );
@@ -94,7 +94,7 @@ test("capability value sets reject unsupported explicit values", () => {
         model: "gpt-5.3-codex",
         permission: "not-a-codex-policy",
         action: "initial",
-        toolVersion: "codex-cli 0.146.0",
+        toolVersion: "codex-cli 0.147.0",
       }),
     (error) => error?.exitCode === 2 && /not accepted|unsupported/iu.test(error.message),
   );
@@ -158,7 +158,7 @@ test("createControls is action-aware for Codex sandbox and adopt provenance", ()
     model: "gpt-5.3-codex",
     sandbox: "workspace-write",
     action: "initial",
-    toolVersion: "codex-cli 0.146.0",
+    toolVersion: "codex-cli 0.147.0",
   });
   assert.equal(initial.sandbox.applied?.mechanism, "cli-flag");
   assert.equal(initial.sandbox.applied?.key, "--sandbox");
@@ -168,7 +168,7 @@ test("createControls is action-aware for Codex sandbox and adopt provenance", ()
     model: "gpt-5.3-codex",
     sandbox: "workspace-write",
     action: "resume",
-    toolVersion: "codex-cli 0.146.0",
+    toolVersion: "codex-cli 0.147.0",
   });
   assert.equal(resume.sandbox.applied?.mechanism, "config-override");
   assert.equal(resume.sandbox.applied?.configPath, "sandbox_mode");
@@ -250,7 +250,7 @@ test("Codex effort is value-gated for any model, not a curated model allowlist",
     model: "gpt-5.6",
     effort: "medium",
     action: "initial",
-    toolVersion: "codex-cli 0.146.0",
+    toolVersion: "codex-cli 0.147.0",
   });
   assert.equal(gpt56.effort.requested, "medium");
   assert.equal(gpt56.effort.applied?.configPath, "model_reasoning_effort");
@@ -261,7 +261,7 @@ test("Codex effort is value-gated for any model, not a curated model allowlist",
     model: "gpt-5.6-codex",
     effort: "high",
     action: "initial",
-    toolVersion: "codex-cli 0.146.0",
+    toolVersion: "codex-cli 0.147.0",
   });
   assert.equal(sol.effort.applied?.value, "high");
 
@@ -271,7 +271,7 @@ test("Codex effort is value-gated for any model, not a curated model allowlist",
     model: "gpt-5.6",
     effort: "max",
     action: "initial",
-    toolVersion: "codex-cli 0.146.0",
+    toolVersion: "codex-cli 0.147.0",
   });
   assert.equal(maxEffort.effort.applied?.value, "max");
   assert.equal(maxEffort.effort.applied?.configPath, "model_reasoning_effort");
@@ -283,7 +283,7 @@ test("Codex effort is value-gated for any model, not a curated model allowlist",
         engine: "codex",
         effort: "ultra",
         model: "gpt-5.6",
-        toolVersion: "codex-cli 0.146.0",
+        toolVersion: "codex-cli 0.147.0",
       }),
     (error) => error?.exitCode === 2 && /not accepted|unsupported/iu.test(error.message),
   );

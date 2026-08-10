@@ -113,7 +113,7 @@ export const CONTROL_AXES: readonly ControlAxis[] = [
 ];
 
 const DEVIN_VERSION = "devin 3000.3.27";
-const CODEX_VERSION = "codex-cli 0.146.0";
+const CODEX_VERSION = "codex-cli 0.147.0";
 const CLAUDE_VERSION = "2.1.221 (Claude Code)";
 const SIMULATED_VERSION = "simulated";
 const DEFAULT_PROVIDER = "native";

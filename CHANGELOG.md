@@ -23,6 +23,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- Refreshed Codex control evidence to `codex-cli 0.147.0` after verifying the local initial and resume CLI surfaces; explicit effort and sandbox controls no longer fail closed solely because the evidence table is stale.
 - Legacy `--mode` is validated as a compatibility projection; requested/applied/effective control observations preserve native argv/config provenance and runtime tool-version evidence.
 - Codex `--effort` is value-gated for any model (`minimal|low|medium|high|xhigh|max`) without a curated model allowlist; `max` is accepted and forwarded via `-c model_reasoning_effort`.
 - Hermes per-run `--effort` remains unverified/fail-closed: oneshot has no public native effort flag, and Sidekick does not rewrite global Hermes config to simulate one.
