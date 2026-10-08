@@ -179,7 +179,11 @@ test("status keeps active runs visible while bounding terminal history", async (
   await runCli(["spawn", "mock", "active", "--dir", sandbox, "--", "working"], { env });
 
   const bounded = JSON.parse((await runCli(["status", "--json"], { env })).stdout);
-  assert.equal(bounded.total, 26);
+  assert.equal(
+    bounded.total,
+    26,
+    `skipped runs: ${JSON.stringify((await runCli(["status", "--all", "--json"], { env })).stdout.slice(0, 2000))}`,
+  );
   assert.equal(bounded.shown, 21);
   assert.equal(bounded.truncated, true);
   assert.ok(bounded.runs.some((run) => run.name === "active"));
