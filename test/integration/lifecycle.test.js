@@ -160,22 +160,28 @@ test("status, clean, and wait apply engine and canonical directory filters", asy
 test("status keeps active runs visible while bounding terminal history", async () => {
   const sandbox = await temporary();
   const env = { SIDEKICK_HOME: join(sandbox, "home"), SIDEKICK_MOCK_DELAY_MS: "10000" };
-  await Promise.all(
-    Array.from({ length: 25 }, (_, index) =>
-      runCli(
-        [
-          "adopt",
-          "mock",
-          `terminal-${String(index).padStart(2, "0")}`,
-          "--session",
-          `session-${index}`,
-          "--dir",
-          sandbox,
-        ],
-        { env },
-      ),
-    ),
-  );
+  // Adopts share one directory-discovery lock with a 10 s wait, so a burst of 25
+  // processes can time out on slow runners. Adopt in small batches and require success.
+  for (let start = 0; start < 25; start += 5) {
+    const results = await Promise.all(
+      Array.from({ length: 5 }, (_, offset) => {
+        const index = start + offset;
+        return runCli(
+          [
+            "adopt",
+            "mock",
+            `terminal-${String(index).padStart(2, "0")}`,
+            "--session",
+            `session-${index}`,
+            "--dir",
+            sandbox,
+          ],
+          { env },
+        );
+      }),
+    );
+    for (const result of results) assert.equal(result.code, 0, result.stderr);
+  }
   await runCli(["spawn", "mock", "active", "--dir", sandbox, "--", "working"], { env });
 
   const bounded = JSON.parse((await runCli(["status", "--json"], { env })).stdout);

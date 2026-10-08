@@ -7,9 +7,11 @@
 Node.js 20 or newer is required; Node.js 22 is recommended.
 
 ```sh
-npm install --global @hcsolakoglu/sidekick
+npm install --global github:hcsolakoglu/sidekick
 sidekick --version
 ```
+
+The package is not on the npm registry yet, so install it from GitHub (the build runs automatically on install). Once it is published, `npm install --global @hcsolakoglu/sidekick` will work too.
 
 For development, clone the repository and run `npm ci && npm run build && npm link`.
 
@@ -51,7 +53,7 @@ Use $sidekick to delegate a bounded repository audit, wait without busy-polling,
 #### Copy-paste setup prompt for an AI coding agent
 
 ```text
-Install and verify Sidekick for all coding-agent harnesses on this machine that support global skill installation. First check that Node.js 20 or newer and npm are available. If sidekick is missing or outdated, run npm install --global @hcsolakoglu/sidekick; do not use sudo and do not change my npm prefix or other npm configuration. Run sidekick --version and sidekick doctor --json. Install one canonical portable skill globally and symlink every globally supported harness to it with: npx skills add hcsolakoglu/sidekick --skill sidekick -g --agent '*' -y. Report project-only harnesses that skip global installation, but do not create manual copies and do not use --copy. Verify installations with npx skills list -g and confirm the harness links resolve to the same canonical Sidekick skill. Then run a deterministic smoke lifecycle with the bundled mock engine using a unique run name: spawn it, wait for completion, inspect the JSON result, and clean only that completed smoke run. Never expose credentials or environment secrets. If permissions, network access, symlink support, or an unsupported harness blocks setup, stop and report the exact failure plus the safest manual command. Report the Sidekick version, doctor results, canonical skill location, linked and skipped harnesses, smoke result, and any remaining action.
+Install and verify Sidekick for all coding-agent harnesses on this machine that support global skill installation. First check that Node.js 20 or newer and npm are available. If sidekick is missing or outdated, run npm install --global github:hcsolakoglu/sidekick; do not use sudo and do not change my npm prefix or other npm configuration. Run sidekick --version and sidekick doctor --json. Install one canonical portable skill globally and symlink every globally supported harness to it with: npx skills add hcsolakoglu/sidekick --skill sidekick -g --agent '*' -y. Report project-only harnesses that skip global installation, but do not create manual copies and do not use --copy. Verify installations with npx skills list -g and confirm the harness links resolve to the same canonical Sidekick skill. Then run a deterministic smoke lifecycle with the bundled mock engine using a unique run name: spawn it, wait for completion, inspect the JSON result, and clean only that completed smoke run. Never expose credentials or environment secrets. If permissions, network access, symlink support, or an unsupported harness blocks setup, stop and report the exact failure plus the safest manual command. Report the Sidekick version, doctor results, canonical skill location, linked and skipped harnesses, smoke result, and any remaining action.
 ```
 
 ## Quick start

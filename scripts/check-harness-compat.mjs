@@ -233,23 +233,15 @@ if (probe) {
     if (devinDownload) rmSync(devinDownload.directory, { recursive: true, force: true });
   }
 
-  const hermesPackage = await getJson(`https://pypi.org/pypi/hermes-agent/${hermesVersion}/json`);
-  const sourceDistribution = hermesPackage.urls.find((item) => item.packagetype === "sdist");
-  if (!sourceDistribution)
-    probeFailures.push({
-      engine: "hermes",
-      missing: ["source distribution"],
-      error: "PyPI has no sdist",
-    });
-  else {
-    const response = await fetch(sourceDistribution.url, { headers });
-    if (!response.ok) throw new Error(`Hermes sdist returned HTTP ${response.status}`);
-    const archive = gunzipSync(Buffer.from(await response.arrayBuffer())).toString("utf8");
-    const required = ["--oneshot", "--resume", "--pass-session-id", "--model"];
-    const missing = required.filter((flag) => !archive.includes(flag));
-    if (missing.length)
-      probeFailures.push({ engine: "hermes", invocation: [sourceDistribution.url], missing });
-  }
+  // Hermes ships from GitHub releases; its PyPI package lags, so probe the tagged source instead.
+  const sourceUrl = hermesRelease.tarball_url;
+  if (!sourceUrl) throw new Error("Hermes release has no source tarball");
+  const response = await fetch(sourceUrl, { headers });
+  if (!response.ok) throw new Error(`Hermes source tarball returned HTTP ${response.status}`);
+  const archive = gunzipSync(Buffer.from(await response.arrayBuffer())).toString("utf8");
+  const required = ["--oneshot", "--resume", "--pass-session-id", "--model"];
+  const missing = required.filter((flag) => !archive.includes(flag));
+  if (missing.length) probeFailures.push({ engine: "hermes", invocation: [sourceUrl], missing });
 }
 
 const issueKeys = [
