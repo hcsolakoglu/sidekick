@@ -39,6 +39,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - CI enforces formatting and validates the packed mock roundtrip result.
 - Published package contents exclude internal engine-candidate research while retaining public CLI and harness documentation.
 - Skill guidance prevents same-directory workers from contending or overlapping by requiring separate worktrees or serialized session reuse.
+- Dev toolchain upgraded to ESLint 10, TypeScript 6.0, typescript-eslint 8.71, and Prettier 3.9; `tsconfig.json` pins `types: ["node"]` for TypeScript 6's opt-in `@types` resolution.
+- Test files run concurrently with per-file isolated state, and the integration suite is split into focused files (full-suite runtime drops from about 18 s to about 7 s); `SIDEKICK_TEST_CONCURRENCY=1` restores serial execution.
 
 ## [0.1.0] - 2026-07-18
 

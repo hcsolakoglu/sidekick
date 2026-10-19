@@ -46,6 +46,8 @@ npm pack --dry-run
 npm run smoke:mock
 ```
 
+The suite runs every test file in its own isolated `SIDEKICK_HOME` sandbox and executes files concurrently; set `SIDEKICK_TEST_CONCURRENCY=1` to reproduce a serial-only failure.
+
 Review the pack listing deliberately. It may contain only the files selected by `package.json`; keep `dist/`, `bin/`, `README.md`, `LICENSE`, installable `skills/`, and published `docs/`, but exclude internal research notes such as `engine-candidates.md`.
 
 ## Security
