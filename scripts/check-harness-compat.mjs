@@ -171,6 +171,7 @@ const codexMeta = await getJson(config.harnesses["codex-cli"].latestStableSource
 const devinMeta = await getJson(config.harnesses.devin.latestStableSource.url);
 const claudeMeta = await getJson(config.harnesses.claude.latestStableSource.url);
 const hermesRelease = await getJson(config.harnesses.hermes.latestStableSource.url);
+const commandCodeMeta = await getJson(config.harnesses.commandcode.latestStableSource.url);
 const hermesVersion = hermesRelease.name?.match(/\bv?(\d+\.\d+\.\d+)\b/)?.[1];
 if (!hermesVersion)
   throw new Error(`Hermes release name contains no package version: ${hermesRelease.name}`);
@@ -179,6 +180,7 @@ const latest = {
   devin: devinMeta.version,
   claude: claudeMeta.tag_name.replace(/^v/, ""),
   hermes: hermesVersion,
+  commandcode: commandCodeMeta.version,
 };
 const updates = Object.entries(latest)
   .filter(([name, version]) => isNewer(version, config.harnesses[name].testedVersion))
@@ -204,6 +206,24 @@ if (probe) {
   ]) {
     if (failure) probeFailures.push(failure);
   }
+
+  const failure = commandProbe(
+    "commandcode",
+    process.env.SIDEKICK_COMPAT_COMMANDCODE_CMD || "commandcode",
+    ["--help"],
+    [
+      "--print",
+      "--resume",
+      "--output-format",
+      "--max-turns",
+      "--tools-all",
+      "--add-dir",
+      "--permission-mode",
+      "--effort",
+      "--yolo",
+    ],
+  );
+  if (failure) probeFailures.push(failure);
 
   let claudeDownload;
   try {

@@ -42,6 +42,16 @@
         "distribution": "https://pypi.org/pypi/hermes-agent/VERSION/json",
         "documentation": "https://github.com/NousResearch/hermes-agent"
       }
+    },
+    "commandcode": {
+      "testedVersion": "1.88.5",
+      "adapter": "src/core/engines/commandcode.ts",
+      "latestStableSource": {
+        "kind": "npm",
+        "url": "https://registry.npmjs.org/command-code/latest",
+        "field": "version",
+        "documentation": "https://commandcode.ai/docs"
+      }
     }
   }
 }
