@@ -4,15 +4,18 @@
     {
       "path": "spawn",
       "flags": [
+        "--add-dir",
         "--dir",
         "--effort",
         "--json",
+        "--max-turns",
         "--mode",
         "--model",
         "--on-complete",
         "--permission",
         "--provider",
         "--sandbox",
+        "--tools-all",
         "--transport",
         "--workspace-trust"
       ]
@@ -22,15 +25,18 @@
     {
       "path": "adopt",
       "flags": [
+        "--add-dir",
         "--dir",
         "--effort",
         "--json",
+        "--max-turns",
         "--mode",
         "--model",
         "--permission",
         "--provider",
         "--sandbox",
         "--session",
+        "--tools-all",
         "--transport",
         "--workspace-trust"
       ]

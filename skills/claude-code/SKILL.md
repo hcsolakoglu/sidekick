@@ -1,6 +1,6 @@
 ---
 name: sidekick
-description: Orchestrate persistent Codex, Devin, Claude Code, Hermes, or mock workers with the sidekick CLI. Use for delegated work that should run concurrently, survive the parent turn, resume by session, or be cancelled and harvested reliably.
+description: Orchestrate persistent Codex, Devin, Claude Code, Command Code, Hermes, or mock workers with the sidekick CLI. Use for delegated work that should run concurrently, survive the parent turn, resume by session, or be cancelled and harvested reliably.
 ---
 
 # Sidekick orchestration
@@ -14,10 +14,10 @@ description: Orchestrate persistent Codex, Devin, Claude Code, Hermes, or mock w
 
 Use `sidekick adopt ENGINE NAME --session ID --dir PATH` for an existing session. Use `sidekick tail NAME` for live output and `sidekick cancel NAME` to stop the full process tree while keeping the session resumable. Use `send --force` only when replacing an active turn.
 
-Sidekick persists `requested`, `applied`, and `effective` control observations. An argv flag does not prove provider-reported effective state. Unsupported, malformed, model-dependent-unverified, or runtime-version-mismatched explicit values fail closed with exit 2. Codex effort is value-gated (`minimal|low|medium|high|xhigh|max`) for any model. Claude effort is exact-model; inspect capabilities before requesting it. Hermes has no public per-run effort flag. Devin family slug `glm-5.2` and variant UID `glm-5-2` are distinct and are never silently aliased; do not use `--mode high` as effort.
+Sidekick persists `requested`, `applied`, and `effective` control observations. An argv flag does not prove provider-reported effective state. Unsupported, malformed, model-dependent-unverified, or runtime-version-mismatched explicit values fail closed with exit 2. Codex effort is value-gated (`minimal|low|medium|high|xhigh|max`) for any model. Command Code effort is value-gated to `off|low|medium|high|xhigh|max`, but each model exposes a subset; without `--permission yolo` its print mode blocks file and shell tools, and a headless `ask`-rule denial ends the run with `permission_denied` (run exit code 126). Claude effort is exact-model; inspect capabilities before requesting it. Hermes has no public per-run effort flag. Devin family slug `glm-5.2` and variant UID `glm-5-2` are distinct and are never silently aliased; do not use `--mode high` as effort.
 
-Choose an engine by task and local availability: use Codex or Claude for focused repository work, Devin for broad autonomous implementation, Hermes for general tool-rich work, and mock only for deterministic workflow tests. Split independent tasks; keep tightly coupled edits with one worker. Give every delegate an exact scope, constraints, verification command, and expected response.
+Choose an engine by task and local availability: use Codex or Claude for focused repository work, Devin for broad autonomous implementation, Command Code for bounded DeepSeek delegation, Hermes for general tool-rich work, and mock only for deterministic workflow tests. Split independent tasks; keep tightly coupled edits with one worker. Give every delegate an exact scope, constraints, verification command, and expected response.
 
 Do not concurrently spawn workers with the same `--dir`: harness session discovery and workspace state can be directory-scoped, causing contention, accidental serialization, or overlapping edits. For real parallelism, create a separate git worktree for each worker and pass its path through `--dir`. If the tasks must share one working tree, serialize them and reuse the existing run with `sidekick send`.
 
-Prompt transport is handled by Sidekick: Codex and Claude use stdin, Devin uses `--prompt-file`, and Hermes currently uses argv. Hermes prompts near 32 KB are unsafe on native Windows; prefer WSL or another engine there. See `sidekick doctor hermes`.
+Prompt transport is handled by Sidekick: Codex and Claude use stdin, Devin uses `--prompt-file`, Command Code uses the single-token `--print=…` argv form, and Hermes currently uses argv. Hermes and Command Code prompts near 32 KB are unsafe on native Windows; prefer WSL or another engine there. See `sidekick doctor hermes` and `sidekick doctor commandcode`.
