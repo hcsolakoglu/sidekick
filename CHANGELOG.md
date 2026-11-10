@@ -8,6 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- Command Code engine (`commandcode`) with headless `--print`/`--output-format json` NDJSON parsing, session resume, adoption, and status/tail/wait/result/cancel parity.
+- Command Code control evidence: value-gated `--effort`, permission modes with `--yolo`, `--max-turns`, `--add-dir`, and `--tools-all`, plus `sidekick skill install commandcode`.
+- `permission_denied` and `max_turns` result mapping for Command Code; a policy denial is recorded as run exit code `126` with the denied tool and shell command instead of a false success.
 - Versioned harness control evidence, immutable `RunMeta.controls`, fail-closed native preflight, and `capabilities --json` reporting.
 - Separate `--effort`, `--permission`, `--sandbox`, `--workspace-trust`, `--provider`, and `--transport` inputs for spawn/adopt; `send` remains control-immutable.
 - Bounded `status` history with active-run visibility, `--all`, `--limit`, `--running`, recency ordering, and truncation metadata.
@@ -23,6 +26,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- Command Code evidence covers `commandcode 1.88.5` and patch releases of that release line, matching the self-update policy for Codex and Devin.
+- `spawn` and `adopt` accept `--max-turns`, repeatable `--add-dir`, and `--tools-all`; engines without those native surfaces fail closed with exit code 2.
 - Refreshed control evidence to `codex-cli 0.164.0` and `devin 3000.11.205`; both self-update, so Codex and Devin evidence now covers patch releases of the same release line (pre-releases, other engines, and any other version stay exact-match fail-closed).
 - Codex runs record the spawn-time `CODEX_HOME`, so `send` resumes reuse the same account home even from another shell; engines that exit without reading stdin (for example on an auth failure) record their exit code and stderr instead of crashing the worker with EPIPE.
 - `sidekick tail` prints finished runs and exits when a followed run completes instead of waiting forever.
