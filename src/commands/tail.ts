@@ -49,18 +49,27 @@ export async function tailCommand(
       /* retry on next event */
     }
   };
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const watcher = watch(store.runPath(name), (_event, file) => {
       if (file === "out.log") void drain();
     });
+    // A removed or replaced run directory surfaces as an async watcher error;
+    // polling below owns the terminal decision, so this must not crash the CLI.
+    watcher.on("error", () => undefined);
     const poll = setInterval(() => {
-      void finished().then(async (done) => {
-        if (!done) return;
-        clearInterval(poll);
-        watcher.close();
-        await drain(); // bytes the watcher has not delivered yet
-        resolve(0);
-      });
+      void finished()
+        .then(async (done) => {
+          if (!done) return;
+          clearInterval(poll);
+          watcher.close();
+          await drain(); // bytes the watcher has not delivered yet
+          resolve(0);
+        })
+        .catch((error: unknown) => {
+          clearInterval(poll);
+          watcher.close();
+          reject(error instanceof Error ? error : new Error(String(error)));
+        });
     }, 500);
     signal.addEventListener(
       "abort",
