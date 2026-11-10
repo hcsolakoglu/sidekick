@@ -316,11 +316,19 @@ test("controls JSON round-trip preserves provenance fields", () => {
   assert.equal(parsed.permission.effective, null);
 });
 
-test("evidence covers patch releases of Codex and Devin but nothing else", () => {
+test("evidence covers patch releases of self-updating engines but nothing else", () => {
   assert.equal(evidenceVersionMatches("devin", "devin 3000.11.92", "devin 3000.11.205"), true);
   assert.equal(evidenceVersionMatches("devin", "devin 3000.11.92", "devin 3000.12.1"), false);
   assert.equal(evidenceVersionMatches("codex", "codex-cli 0.164.0", "codex-cli 0.164.4"), true);
   assert.equal(evidenceVersionMatches("codex", "codex-cli 0.164.0", "codex-cli 0.165.0"), false);
+  assert.equal(
+    evidenceVersionMatches("commandcode", "commandcode 1.88.5", "commandcode 1.88.9"),
+    true,
+  );
+  assert.equal(
+    evidenceVersionMatches("commandcode", "commandcode 1.88.5", "commandcode 1.89.0"),
+    false,
+  );
   // Pre-releases, unknown versions, and two-part versions fail closed.
   assert.equal(
     evidenceVersionMatches("codex", "codex-cli 0.164.0", "codex-cli 0.164.1-alpha.1"),

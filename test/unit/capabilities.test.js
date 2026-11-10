@@ -6,11 +6,15 @@ import test from "node:test";
 const root = process.cwd();
 const cli = join(root, "bin", "sidekick.js");
 
-function run(args) {
+function run(args, extraEnv = {}) {
   return spawnSync(process.execPath, [cli, ...args], {
     cwd: root,
     encoding: "utf8",
-    env: { ...process.env, SIDEKICK_HOME: join(root, ".tmp-capabilities-test") },
+    env: {
+      ...process.env,
+      SIDEKICK_HOME: join(root, ".tmp-capabilities-test"),
+      ...extraEnv,
+    },
   });
 }
 
@@ -77,4 +81,36 @@ test("capabilities scopes model-dependent gates per engine", () => {
 
   const verified = run(["capabilities", "codex", "--model", "gpt-5.3-codex", "--json"]);
   assert.equal(verified.status, 0, verified.stderr);
+});
+
+test("capabilities report Command Code native controls for the evidenced version", () => {
+  const result = run(
+    ["capabilities", "commandcode", "--model", "deepseek/deepseek-v4.1-flash", "--json"],
+    { SIDEKICK_TOOL_VERSION_COMMANDCODE: "commandcode 1.88.5" },
+  );
+  assert.equal(result.status, 0, result.stderr);
+  const value = JSON.parse(result.stdout);
+  const initial = value.capabilities.filter((entry) => entry.action === "initial");
+  for (const axis of ["model", "effort", "permission", "maxTurns", "addDirs", "toolsAll"]) {
+    const entry = initial.find((candidate) => candidate.axis === axis);
+    assert.ok(entry, `missing ${axis} evidence`);
+    assert.equal(entry.support, "native");
+  }
+  const effort = initial.find((entry) => entry.axis === "effort");
+  assert.ok(effort.values.includes("max"));
+  assert.equal(effort.modelDependent, false);
+  assert.equal(
+    value.capabilities.some((entry) => entry.axis === "sandbox"),
+    false,
+  );
+});
+
+test("capabilities mark Command Code evidence unverified for another release line", () => {
+  const result = run(["capabilities", "commandcode", "--json"], {
+    SIDEKICK_TOOL_VERSION_COMMANDCODE: "commandcode 1.99.0",
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const value = JSON.parse(result.stdout);
+  assert.ok(value.capabilities.length > 0);
+  assert.ok(value.capabilities.every((entry) => entry.support === "unverified"));
 });

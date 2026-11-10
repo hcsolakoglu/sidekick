@@ -52,4 +52,17 @@ test("skill install writes each harness format to its supported location", async
     await readFile(join(sandbox, "hermes", "skills", "sidekick", "SKILL.md"), "utf8"),
     /metadata:\n {2}hermes:/u,
   );
+  const commandcodeEnv = { ...env, HOME: join(sandbox, "userhome") };
+  const commandcode = await runCli(["skill", "install", "commandcode", "--json"], {
+    env: commandcodeEnv,
+    cwd: sandbox,
+  });
+  assert.equal(commandcode.code, 0, commandcode.stderr);
+  assert.match(
+    await readFile(
+      join(sandbox, "userhome", ".commandcode", "skills", "sidekick", "SKILL.md"),
+      "utf8",
+    ),
+    /name: sidekick/u,
+  );
 });
