@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { join } from "node:path";
-import { writeFile } from "node:fs/promises";
+import { rm, writeFile } from "node:fs/promises";
 import { runCli, temporary } from "../helpers.js";
 
 test("devin session discovery sorts numeric last_activity_at epoch values", async () => {
@@ -51,6 +51,20 @@ test("tail prints a finished run and a followed run, then exits", async () => {
   const finished = await runCli(["tail", "tailed", "-n", "5"], { env });
   assert.equal(finished.code, 0);
   assert.match(finished.stdout, /mock spawn: hello/u);
+});
+
+test("tail exits cleanly when the followed run disappears", async () => {
+  const sandbox = await temporary();
+  const home = join(sandbox, "home");
+  const env = { SIDEKICK_HOME: home, SIDEKICK_MOCK_DELAY_MS: "3000" };
+  await runCli(["spawn", "mock", "vanishing", "--dir", sandbox, "--", "slow"], { env });
+  const tailed = runCli(["tail", "vanishing"], { env });
+  // Let tail pass its initial exists check and enter the follow loop.
+  await new Promise((resolve) => setTimeout(resolve, 700));
+  await rm(join(home, "runs", "vanishing"), { recursive: true, force: true });
+  const result = await tailed;
+  assert.equal(result.code, 2);
+  assert.equal(result.stderr, "sidekick: unknown run: vanishing\n");
 });
 
 test("an engine that exits without reading stdin records its failure instead of dying", async () => {
