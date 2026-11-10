@@ -47,6 +47,23 @@ test("reaps dead-pid legacy lock files without waiting for mtime", async () => {
   assert.ok(Date.now() - started < 1_000);
 });
 
+test("reaps an ownerless lock directory left by a crash before the marker write", async () => {
+  const root = await temporary();
+  const store = new RunStore(root);
+  await store.initialize();
+  const lock = join(root, "locks", "run-ownerless.lock");
+  await mkdir(lock);
+  await utimes(lock, new Date(0), new Date(0));
+  const started = Date.now();
+  let called = false;
+  await store.withLock("ownerless", async () => {
+    called = true;
+  });
+  assert.equal(called, true);
+  assert.ok(Date.now() - started < 1_000);
+  assert.equal((await readdir(join(root, "locks"))).includes("run-ownerless.lock"), false);
+});
+
 test("name validation prevents traversal", () => {
   assert.doesNotThrow(() => validateName("worker-1.ok"));
   assert.throws(() => validateName("../escape"), /name must match/u);
