@@ -131,10 +131,11 @@ export const CONTROL_AXES: readonly ControlAxis[] = [
   "toolsAll",
 ];
 
-const DEVIN_VERSION = "devin 3000.11.205";
-const CODEX_VERSION = "codex-cli 0.164.0";
+const DEVIN_VERSION = "devin 3000.12.32";
+const CODEX_VERSION = "codex-cli 0.167.0";
 const COMMANDCODE_VERSION = "commandcode 1.88.5";
-const CLAUDE_VERSION = "2.1.221 (Claude Code)";
+const CLAUDE_VERSION = "2.1.321 (Claude Code)";
+const HERMES_VERSION = "Hermes Agent v0.22.5";
 const SIMULATED_VERSION = "simulated";
 const DEFAULT_PROVIDER = "native";
 const DEFAULT_TRANSPORT: Transport = "cli-subprocess";
@@ -151,6 +152,17 @@ const CLAUDE_EFFORT_LIMITED_MODELS = ["claude-opus-4-6", "claude-sonnet-4-6"] as
 const CODEX_EFFORT_VALUES = ["minimal", "low", "medium", "high", "xhigh", "max"] as const;
 /** Command Code recognizes exactly these reasoning-effort tokens; each model exposes a subset. */
 const COMMANDCODE_EFFORT_VALUES = ["off", "low", "medium", "high", "xhigh", "max"] as const;
+/** Hermes --reasoning vocabulary, including the engine-specific none/ultra bounds. */
+const HERMES_EFFORT_VALUES = [
+  "none",
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
+  "ultra",
+] as const;
 /** Documented --permission-mode values; yolo is emitted as the native --yolo alias. */
 const COMMANDCODE_PERMISSION_VALUES = [
   "default",
@@ -687,9 +699,9 @@ export const capabilityRegistry: readonly CapabilityRecord[] = [
     "initial",
     "native",
     false,
-    "normal/accept-edits/dangerous are parser-accepted; smart is not promoted.",
+    "normal/accept-edits/smart/dangerous are parser-accepted for 3000.12.x.",
     undefined,
-    ["normal", "accept-edits", "dangerous", "autonomous"],
+    ["normal", "accept-edits", "smart", "dangerous", "autonomous"],
   ),
   record(
     "devin",
@@ -701,9 +713,9 @@ export const capabilityRegistry: readonly CapabilityRecord[] = [
     "resume",
     "native",
     false,
-    "normal/accept-edits/dangerous are parser-accepted; smart is not promoted.",
+    "normal/accept-edits/smart/dangerous are parser-accepted for 3000.12.x.",
     undefined,
-    ["normal", "accept-edits", "dangerous", "autonomous"],
+    ["normal", "accept-edits", "smart", "dangerous", "autonomous"],
   ),
   record(
     "devin",
@@ -825,7 +837,7 @@ export const capabilityRegistry: readonly CapabilityRecord[] = [
     false,
     "Adopt validates the same Devin permission vocabulary.",
     undefined,
-    ["normal", "accept-edits", "dangerous", "autonomous"],
+    ["normal", "accept-edits", "smart", "dangerous", "autonomous"],
   ),
   record(
     "devin",
@@ -865,7 +877,7 @@ export const capabilityRegistry: readonly CapabilityRecord[] = [
     false,
     "Fallback preserves Devin permission.",
     undefined,
-    ["normal", "accept-edits", "dangerous", "autonomous"],
+    ["normal", "accept-edits", "smart", "dangerous", "autonomous"],
   ),
   record(
     "devin",
@@ -893,14 +905,14 @@ export const capabilityRegistry: readonly CapabilityRecord[] = [
     undefined,
     ["true", "false"],
   ),
-  ...adapterSurfaceRecords("hermes", "Hermes Agent v0.19.0"),
+  ...adapterSurfaceRecords("hermes", HERMES_VERSION),
   ...adapterSurfaceRecords("devin", DEVIN_VERSION, ["fallback"]),
   record(
     "hermes",
     "native",
     "*",
     DEFAULT_TRANSPORT,
-    "Hermes Agent v0.19.0",
+    HERMES_VERSION,
     "model",
     "initial",
     "native",
@@ -912,24 +924,28 @@ export const capabilityRegistry: readonly CapabilityRecord[] = [
     "native",
     "*",
     DEFAULT_TRANSPORT,
-    "Hermes Agent v0.19.0",
+    HERMES_VERSION,
     "model",
     "resume",
     "native",
     false,
     "Hermes --model is supported by the Sidekick adapter.",
   ),
-  record(
-    "hermes",
-    "native",
-    "*",
-    DEFAULT_TRANSPORT,
-    "Hermes Agent v0.19.0",
-    "effort",
-    "initial",
-    "unverified",
-    true,
-    "Global Hermes config is not a per-run proof.",
+  ...(["initial", "resume", "adopt", "fallback"] as const).map((action) =>
+    record(
+      "hermes",
+      "native",
+      "*",
+      DEFAULT_TRANSPORT,
+      HERMES_VERSION,
+      "effort",
+      action,
+      "native",
+      false,
+      "Hermes --reasoning applies a documented per-run reasoning level to oneshot and resume; the provider may ignore a level the model lacks.",
+      undefined,
+      [...HERMES_EFFORT_VALUES],
+    ),
   ),
   ...adapterSurfaceRecords("claude", CLAUDE_VERSION),
   record(
@@ -1272,10 +1288,6 @@ function normalizeInput(input: ResolveControlsInput): ResolveControlsInput {
 
 function validateExplicit(input: ResolveControlsInput): void {
   const toolVersion = input.toolVersion ?? "unknown";
-  if (input.engine === "devin" && input.permission === "smart")
-    throw unsupported(
-      "Devin permission smart is unverified for the evidenced parser; refusing to emit it",
-    );
   if (input.engine === "devin" && input.permission === "autonomous" && input.sandbox !== true)
     throw unsupported("Devin autonomous permission requires sandbox=true");
   if (input.engine === "devin" && input.sandbox === true && input.permission !== "autonomous")
@@ -1438,6 +1450,8 @@ function effortObservation(
     return observation(effort, applied("cli-flag", effort, "native-argv", "--effort", effort));
   if (engine === "commandcode")
     return observation(effort, applied("cli-flag", effort, "native-argv", "--effort", effort));
+  if (engine === "hermes")
+    return observation(effort, applied("cli-flag", effort, "native-argv", "--reasoning", effort));
   if (engine === "mock")
     return observation(effort, applied("none", effort, "adapter", undefined, effort));
   return observation(

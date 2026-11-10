@@ -31,7 +31,7 @@ Use this file as the canonical rule list for AI agents and humans. Read [CONTRIB
 - `applied` describes the creation-time application path. Resume/fallback turns may emit different native mechanisms for the same requested values; each turn's `command.json` is the authoritative argv for that turn. Worker builds reproject applied mechanisms for the current action without rewriting the creation snapshot.
 - Explicit unsupported, unverified, invalid, or value-level mismatched controls fail closed with exit code `2` before prompt, cwd, discovery, lock, store, or worker side effects.
 - Codex `--effort` is value-gated (`minimal|low|medium|high|xhigh|max`) for any `--model`; Sidekick does not maintain a curated Codex model allowlist. Provider/model may ignore unsupported levels.
-- Hermes has no public per-run `--effort` CLI flag in the current oneshot adapter path; global `agent.reasoning_effort` config is not treated as per-run Sidekick control. Explicit Hermes non-auto effort stays fail-closed/`unverified` until a native per-run surface exists.
+- Hermes effort is native per-run through `--reasoning` (`none|minimal|low|medium|high|xhigh|max|ultra`); Sidekick never rewrites global `agent.reasoning_effort` config. Hermes permission and sandbox remain fail-closed/`unverified`.
 - Claude effort remains exact-model per official model-config docs.
 - `status --json` and spawn/adopt JSON acknowledgements expose control state. `command.json` records the exact argv sent to the engine.
 
