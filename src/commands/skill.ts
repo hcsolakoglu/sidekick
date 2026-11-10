@@ -15,7 +15,7 @@ export async function skillCommand(args: string[], store: RunStore): Promise<num
   const [action, ...rest] = args;
   if (action !== "install")
     throw new CliError(
-      "usage: sidekick skill install <claude-code|codex|devin|hermes> [--force] [--json]",
+      "usage: sidekick skill install <claude-code|codex|devin|hermes|commandcode> [--force] [--json]",
     );
   const { values, positionals } = parseOptions(rest, {
     options: {
@@ -26,7 +26,7 @@ export async function skillCommand(args: string[], store: RunStore): Promise<num
   const [harness] = positionals;
   if (!harness || positionals.length !== 1)
     throw new CliError(
-      "usage: sidekick skill install <claude-code|codex|devin|hermes> [--force] [--json]",
+      "usage: sidekick skill install <claude-code|codex|devin|hermes|commandcode> [--force] [--json]",
     );
   const installed: string[] = [];
   if (harness === "claude-code") {
@@ -76,6 +76,15 @@ export async function skillCommand(args: string[], store: RunStore): Promise<num
     installed.push(
       await installFile(
         join(skillRoot, "hermes", "SKILL.md"),
+        join(root, "skills", "sidekick", "SKILL.md"),
+        values.force,
+      ),
+    );
+  } else if (harness === "commandcode") {
+    const root = join(homedir(), ".commandcode");
+    installed.push(
+      await installFile(
+        join(skillRoot, "claude-code", "SKILL.md"),
         join(root, "skills", "sidekick", "SKILL.md"),
         values.force,
       ),

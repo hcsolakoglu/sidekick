@@ -35,6 +35,8 @@ export interface RunMeta {
   onComplete?: string;
   /** Codex account home captured at spawn/adopt so every resume reuses the same account. */
   codexHome?: string;
+  /** Extra workspace directories captured at spawn/adopt (Command Code --add-dir). */
+  addDirs?: string[];
 }
 export interface RunRecord {
   meta: RunMeta;
@@ -58,7 +60,14 @@ export interface RunStoreScan {
 }
 
 const NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/u;
-const ENGINE_NAMES: readonly EngineName[] = ["codex", "devin", "claude", "hermes", "mock"];
+const ENGINE_NAMES: readonly EngineName[] = [
+  "codex",
+  "devin",
+  "claude",
+  "hermes",
+  "commandcode",
+  "mock",
+];
 export function validateName(name: string): void {
   if (!NAME_RE.test(name) || name === "." || name === "..")
     throw new CliError("name must match [A-Za-z0-9][A-Za-z0-9._-]{0,79}");
@@ -536,6 +545,9 @@ function isRunMeta(value: unknown, name: string): value is RunMeta {
     Number.isFinite(Date.parse(meta.updatedAt)) &&
     (meta.onComplete === undefined || typeof meta.onComplete === "string") &&
     (meta.codexHome === undefined || typeof meta.codexHome === "string") &&
+    (meta.addDirs === undefined ||
+      (Array.isArray(meta.addDirs) &&
+        meta.addDirs.every((value) => typeof value === "string" && value.length > 0))) &&
     (meta.controls === undefined || isHarnessControls(meta.controls))
   );
 }

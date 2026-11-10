@@ -44,7 +44,7 @@ export function controlString(
   axis: keyof HarnessControls,
   fallback: string,
 ): string {
-  const value = controls?.[axis].applied?.value;
+  const value = controls?.[axis]?.applied?.value;
   return typeof value === "string" ? value : fallback;
 }
 
@@ -52,6 +52,6 @@ export function controlBoolean(
   controls: HarnessControls | undefined,
   axis: keyof HarnessControls,
 ): boolean | undefined {
-  const value = controls?.[axis].applied?.value;
+  const value = controls?.[axis]?.applied?.value;
   return typeof value === "boolean" ? value : undefined;
 }

@@ -1,6 +1,7 @@
 import { CliError } from "../../utils/errors.js";
 import { claudeEngine } from "./claude.js";
 import { codexEngine } from "./codex.js";
+import { commandcodeEngine } from "./commandcode.js";
 import { devinEngine } from "./devin.js";
 import { hermesEngine } from "./hermes.js";
 import { mockEngine } from "./mock.js";
@@ -11,6 +12,7 @@ const engines: Record<EngineName, Engine> = {
   devin: devinEngine,
   claude: claudeEngine,
   hermes: hermesEngine,
+  commandcode: commandcodeEngine,
   mock: mockEngine,
 };
 export const engineNames = Object.keys(engines) as EngineName[];

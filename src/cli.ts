@@ -20,10 +20,10 @@ export const VERSION = "0.1.0";
 export const HELP = `sidekick ${VERSION} — persistent local multi-agent orchestration
 
 Usage:
-  sidekick spawn ENGINE NAME [--dir PATH] [--model MODEL] [--provider PROVIDER] [--transport TRANSPORT] [--effort EFFORT] [--permission PERMISSION] [--sandbox VALUE] [--workspace-trust BOOL] [--mode MODE] [--on-complete CMD] [--json] -- PROMPT
+  sidekick spawn ENGINE NAME [--dir PATH] [--model MODEL] [--provider PROVIDER] [--transport TRANSPORT] [--effort EFFORT] [--permission PERMISSION] [--sandbox VALUE] [--workspace-trust BOOL] [--mode MODE] [--max-turns N] [--add-dir PATH] [--tools-all BOOL] [--on-complete CMD] [--json] -- PROMPT
   sidekick send NAME [--force] [--json] -- PROMPT
   sidekick wait [NAME ...] [--all] [--engine ENGINE] [--dir PATH] [--timeout SECONDS] [--quiet] [--json]
-  sidekick adopt ENGINE NAME --session ID [--dir PATH] [--model MODEL] [--provider PROVIDER] [--transport TRANSPORT] [--effort EFFORT] [--permission PERMISSION] [--sandbox VALUE] [--workspace-trust BOOL] [--mode MODE] [--json]
+  sidekick adopt ENGINE NAME --session ID [--dir PATH] [--model MODEL] [--provider PROVIDER] [--transport TRANSPORT] [--effort EFFORT] [--permission PERMISSION] [--sandbox VALUE] [--workspace-trust BOOL] [--mode MODE] [--max-turns N] [--add-dir PATH] [--tools-all BOOL] [--json]
   sidekick tail NAME [-n LINES]
   sidekick status [--all] [--engine ENGINE] [--dir PATH] [--limit N] [--running] [--json]
   sidekick result NAME [--json]
@@ -34,7 +34,7 @@ Usage:
   sidekick capabilities [ENGINE ...] [--model MODEL] --json
   sidekick skill install HARNESS [--force] [--json]
 
-Engines: codex, devin, claude, hermes, mock
+Engines: codex, devin, claude, hermes, commandcode, mock
 
 Global options:
   -h, --help       Show this help

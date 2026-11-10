@@ -6,6 +6,7 @@ import type { RunStore } from "../core/run-store.js";
 import { CliError } from "../utils/errors.js";
 import {
   directory,
+  extraDirectories,
   parseBooleanOption,
   parseOptions,
   parseTransportOption,
@@ -26,6 +27,9 @@ export async function spawnCommand(args: string[], store: RunStore): Promise<num
       sandbox: { type: "string" },
       "workspace-trust": { type: "string" },
       mode: { type: "string" },
+      "max-turns": { type: "string" },
+      "add-dir": { type: "string", multiple: true },
+      "tools-all": { type: "string" },
       "on-complete": { type: "string" },
       json: { type: "boolean", default: false },
     },
@@ -40,6 +44,10 @@ export async function spawnCommand(args: string[], store: RunStore): Promise<num
   validateName(name);
   validatePromptSource(promptParts);
   const workspaceTrust = parseBooleanOption(values["workspace-trust"], "--workspace-trust");
+  const toolsAll = parseBooleanOption(values["tools-all"], "--tools-all");
+  const addDirValues = values["add-dir"] ?? [];
+  if (addDirValues.length && !engine.options?.addDirs)
+    throw new CliError(`--add-dir is not supported by the ${engine.name} engine`, 2);
   const transport = parseTransportOption(values.transport);
   const controls = resolveControls({
     engine: engine.name,
@@ -51,10 +59,13 @@ export async function spawnCommand(args: string[], store: RunStore): Promise<num
     ...(values.permission ? { permission: values.permission } : {}),
     ...(values.sandbox ? { sandbox: values.sandbox } : {}),
     ...(workspaceTrust === undefined ? {} : { workspaceTrust }),
+    ...(values["max-turns"] ? { maxTurns: values["max-turns"] } : {}),
+    ...(toolsAll === undefined ? {} : { toolsAll }),
     action: "initial",
     toolVersion: evidencedToolVersion(engine.name),
   });
   const cwd = await directory(values.dir);
+  const addDirs = await extraDirectories(cwd, addDirValues);
   const prompt = await promptFrom(promptParts);
   await store.initialize();
   await store.withLock(name, async () => {
@@ -69,6 +80,7 @@ export async function spawnCommand(args: string[], store: RunStore): Promise<num
           controls,
           onComplete: values["on-complete"] ?? process.env.SIDEKICK_ON_COMPLETE ?? "",
           ...codexHomeFields(engine.name),
+          ...(addDirs.length ? { addDirs } : {}),
         },
         prompt,
       );

@@ -28,6 +28,14 @@ export function enginePromptSupport(
       transport: "prompt-file",
       limit: "no Sidekick transport limit; model context still applies",
     };
+  if (engine === "commandcode")
+    return {
+      transport: "argv",
+      limit:
+        platform === "win32"
+          ? "keep prompts below 24 KiB; Windows process command lines are limited to 32,767 characters"
+          : "no Sidekick transport cap; OS argv limits and model context still apply",
+    };
   return {
     transport: "argv",
     limit:
@@ -101,6 +109,8 @@ export function engineStatePath(
           ? joinPath(env.LOCALAPPDATA || joinPath(home, "AppData", "Local"), "hermes")
           : joinPath(home, ".hermes"))
       );
+    case "commandcode":
+      return joinPath(home, ".commandcode");
     case "mock":
       return "bundled";
   }
