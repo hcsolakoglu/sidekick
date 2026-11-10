@@ -33,6 +33,8 @@ export interface RunMeta {
   createdAt: string;
   updatedAt: string;
   onComplete?: string;
+  /** Codex account home captured at spawn/adopt so every resume reuses the same account. */
+  codexHome?: string;
 }
 export interface RunRecord {
   meta: RunMeta;
@@ -533,6 +535,7 @@ function isRunMeta(value: unknown, name: string): value is RunMeta {
     typeof meta.updatedAt === "string" &&
     Number.isFinite(Date.parse(meta.updatedAt)) &&
     (meta.onComplete === undefined || typeof meta.onComplete === "string") &&
+    (meta.codexHome === undefined || typeof meta.codexHome === "string") &&
     (meta.controls === undefined || isHarnessControls(meta.controls))
   );
 }

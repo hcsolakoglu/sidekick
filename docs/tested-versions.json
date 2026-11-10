@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "checkedAt": "2026-08-10",
+  "checkedAt": "2026-10-23",
   "harnesses": {
     "codex-cli": {
-      "testedVersion": "0.147.0",
+      "testedVersion": "0.164.0",
       "adapter": "src/core/engines/codex.ts",
       "latestStableSource": {
         "kind": "npm",
@@ -13,7 +13,7 @@
       }
     },
     "devin": {
-      "testedVersion": "3000.3.27",
+      "testedVersion": "3000.11.205",
       "adapter": "src/core/engines/devin.ts",
       "latestStableSource": {
         "kind": "vendor-manifest",

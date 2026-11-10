@@ -179,6 +179,17 @@ Node documents that `.cmd` and `.bat` files cannot be executed directly without 
 
 Detached workers use `detached`, `unref`, file-backed stdio, and `windowsHide`. Force resend and `cancel` terminate the detached process group on POSIX. On Windows they invoke `taskkill.exe /PID PID /T /F` as a direct executable with an argv array, matching Microsoft’s documented [`/T` child-tree behavior](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/taskkill). Before liveness repair or termination, Sidekick checks both the PID and stored launch identity, preventing PID reuse from targeting an unrelated process. Atomic state replacement retries transient Windows sharing violations without deleting the previously committed state file.
 
+## Multiple Codex accounts
+
+Codex keeps its login in `CODEX_HOME` (default `~/.codex`). Give each concurrent worker its own home and Sidekick records it on the run, so every `send` resumes under the same account even from a shell with a different `CODEX_HOME`:
+
+```bash
+CODEX_HOME=~/.codex-acct2 sidekick spawn codex review --dir . -- "review the diff"
+sidekick send review -- "now check the tests"   # still uses ~/.codex-acct2
+```
+
+Create one independent `codex login` per home. Do not copy one account's `auth.json` into a second home: Codex rotates refresh tokens, so two live copies invalidate each other. Sessions live inside each home, so resume only works with the home that created the run.
+
 ## Environment variables
 
 | Variable                           | Purpose                                                         |

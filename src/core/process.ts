@@ -204,6 +204,11 @@ export function runProcess(
               )
               .catch(reject),
         );
+        // A child that exits before reading stdin (auth failure, bad flag) closes the pipe;
+        // its exit code and stderr carry the failure, so EPIPE must not crash the worker.
+        // A child that exits before reading stdin (auth failure, bad flag) closes the pipe;
+        // its exit code and stderr carry the failure, so EPIPE must not crash the worker.
+        child.stdin.on("error", () => undefined);
         child.stdin.end(options.stdin);
       })
       .catch(reject);

@@ -23,6 +23,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- Refreshed control evidence to `codex-cli 0.164.0` and `devin 3000.11.205`; both self-update, so Codex and Devin evidence now covers patch releases of the same release line (pre-releases, other engines, and any other version stay exact-match fail-closed).
+- Codex runs record the spawn-time `CODEX_HOME`, so `send` resumes reuse the same account home even from another shell; engines that exit without reading stdin (for example on an auth failure) record their exit code and stderr instead of crashing the worker with EPIPE.
+- `sidekick tail` prints finished runs and exits when a followed run completes instead of waiting forever.
+- Codex resume turns pass `--skip-git-repo-check` like initial turns, so resuming in a non-git directory no longer fails.
+- Devin session discovery accepts numeric `last_activity_at` values (epoch seconds) from Devin 3000.11 and newer.
 - Refreshed Codex control evidence to `codex-cli 0.147.0` after verifying the local initial and resume CLI surfaces; explicit effort and sandbox controls no longer fail closed solely because the evidence table is stale.
 - Legacy `--mode` is validated as a compatibility projection; requested/applied/effective control observations preserve native argv/config provenance and runtime tool-version evidence.
 - Codex `--effort` is value-gated for any model (`minimal|low|medium|high|xhigh|max`) without a curated model allowlist; `max` is accepted and forwarded via `-c model_reasoning_effort`.

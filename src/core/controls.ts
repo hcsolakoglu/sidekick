@@ -112,8 +112,8 @@ export const CONTROL_AXES: readonly ControlAxis[] = [
   "cwdRestore",
 ];
 
-const DEVIN_VERSION = "devin 3000.3.27";
-const CODEX_VERSION = "codex-cli 0.147.0";
+const DEVIN_VERSION = "devin 3000.11.205";
+const CODEX_VERSION = "codex-cli 0.164.0";
 const CLAUDE_VERSION = "2.1.221 (Claude Code)";
 const SIMULATED_VERSION = "simulated";
 const DEFAULT_PROVIDER = "native";
@@ -1187,6 +1187,34 @@ function validateExplicit(input: ResolveControlsInput): void {
   }
 }
 
+const PATCH_TOLERANT_ENGINES: readonly EngineName[] = ["codex", "devin"];
+
+function releaseParts(version: string): number[] {
+  const token = version.trim().split(/\s+/u)[1] ?? "";
+  return /^\d+(?:\.\d+)+$/u.test(token) ? token.split(".").map(Number) : [];
+}
+
+/**
+ * Codex and Devin self-update patch releases (Devin moved 3000.11.92 -> 3000.11.205 within
+ * minutes), so their evidence covers the same release line (all numeric parts but the last).
+ * Pre-releases, other engines, and any other difference stay exact-match fail-closed.
+ */
+export function evidenceVersionMatches(
+  engine: EngineName,
+  evidenced: string,
+  runtime: string,
+): boolean {
+  if (evidenced === runtime) return true;
+  if (!PATCH_TOLERANT_ENGINES.includes(engine)) return false;
+  const left = releaseParts(evidenced);
+  const right = releaseParts(runtime);
+  return (
+    left.length >= 3 &&
+    left.length === right.length &&
+    left.slice(0, -1).every((part, index) => part === right[index])
+  );
+}
+
 function findCapability(
   engine: EngineName,
   provider: string,
@@ -1203,7 +1231,7 @@ function findCapability(
         entry.provider === provider &&
         entry.model === model &&
         entry.transport === transport &&
-        entry.toolVersion === toolVersion &&
+        evidenceVersionMatches(engine, entry.toolVersion, toolVersion) &&
         entry.axis === axis &&
         entry.action === action,
     ) ??
@@ -1213,7 +1241,7 @@ function findCapability(
         entry.provider === provider &&
         entry.model === "*" &&
         entry.transport === transport &&
-        entry.toolVersion === toolVersion &&
+        evidenceVersionMatches(engine, entry.toolVersion, toolVersion) &&
         entry.axis === axis &&
         entry.action === action,
     )

@@ -19,6 +19,14 @@ const context = {
   env: {},
 };
 
+test("codex resume skips the git repo check like the initial turn", () => {
+  const initial = codexEngine.build(context);
+  const resumed = codexEngine.build({ ...context, action: "resume", session: "abc" });
+  assert.ok(initial.args.includes("--skip-git-repo-check"));
+  assert.ok(resumed.args.includes("--skip-git-repo-check"));
+  assert.deepEqual(resumed.args.slice(0, 2), ["exec", "resume"]);
+});
+
 test("command override parser preserves quoted Windows paths", () => {
   assert.deepEqual(splitCommand('"C:\\Program Files\\Agent\\agent.exe" --flag'), [
     "C:\\Program Files\\Agent\\agent.exe",

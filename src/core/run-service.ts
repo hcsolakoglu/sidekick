@@ -1,6 +1,6 @@
 import { readdir } from "node:fs/promises";
 import { createHash } from "node:crypto";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { getEngine } from "./engines/index.js";
 import {
   evidencedToolVersion,
@@ -18,6 +18,14 @@ import { CliError } from "../utils/errors.js";
 import { splitCommand } from "./engines/shared.js";
 
 const DEFAULT_MAX_LOG_MB = 10;
+
+/** Records the caller's absolute CODEX_HOME on a new Codex run so resumes reuse that account. */
+export function codexHomeFields(
+  engine: string,
+  env: NodeJS.ProcessEnv = process.env,
+): { codexHome?: string } {
+  return engine === "codex" && env.CODEX_HOME ? { codexHome: resolve(env.CODEX_HOME) } : {};
+}
 
 export function maxLogBytes(env: NodeJS.ProcessEnv = process.env): number {
   const raw = env.SIDEKICK_MAX_LOG_MB;
@@ -158,6 +166,10 @@ export async function executeWorker(
     !needsControlResolution && controlAction !== "initial"
       ? reprojectControls(controls, record.meta.engine, controlAction)
       : controls;
+  // Resumes must run under the account home chosen at spawn, not the caller's shell.
+  const workerEnv = record.meta.codexHome
+    ? { ...process.env, CODEX_HOME: record.meta.codexHome }
+    : process.env;
   const context = {
     action,
     session: record.session,
@@ -168,7 +180,7 @@ export async function executeWorker(
     mode: record.meta.mode,
     controls: workerControls,
     delayMs: Number(process.env.SIDEKICK_MOCK_DELAY_MS ?? 20),
-    env: process.env,
+    env: workerEnv,
   };
   const invocation = engine.build(context);
   const maximum = maxLogBytes();
@@ -188,6 +200,7 @@ export async function executeWorker(
     };
     const result = await runProcess(invocation.command, invocation.args, {
       cwd: record.meta.directory,
+      env: workerEnv,
       ...(invocation.stdin === undefined ? {} : { stdin: invocation.stdin }),
       maxCaptureBytes: maximum,
       onStdout: async (chunk) => {
@@ -290,11 +303,15 @@ async function discoverSessions(engine: string, directory: string): Promise<Map<
       const result = await runProcess(command, [...leading, "list", "--format", "json"], {
         cwd: directory,
       });
-      const values = JSON.parse(result.stdout) as Array<{ id?: string; last_activity_at?: string }>;
+      // Devin >=3000.11 reports last_activity_at as epoch seconds; older builds used strings.
+      const values = JSON.parse(result.stdout) as Array<{
+        id?: string;
+        last_activity_at?: string | number;
+      }>;
       return new Map(
         values
           .filter((value) => value.id)
-          .map((value) => [value.id ?? "", value.last_activity_at ?? ""]),
+          .map((value) => [value.id ?? "", activityKey(value.last_activity_at)]),
       );
     } catch {
       return new Map();
@@ -338,6 +355,11 @@ async function discoverSessions(engine: string, directory: string): Promise<Map<
     }
   }
   return new Map();
+}
+
+// Sortable string key: zero-padded for numbers so lexical order matches numeric order.
+function activityKey(value: string | number | undefined): string {
+  return typeof value === "number" ? String(Math.trunc(value)).padStart(16, "0") : (value ?? "");
 }
 
 function newestSession(before: Map<string, string>, after: Map<string, string>): string {

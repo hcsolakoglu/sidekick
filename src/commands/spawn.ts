@@ -1,6 +1,6 @@
 import { getEngine } from "../core/engines/index.js";
 import { evidencedToolVersion, resolveControls } from "../core/controls.js";
-import { startWorker, withEngineSlot } from "../core/run-service.js";
+import { codexHomeFields, startWorker, withEngineSlot } from "../core/run-service.js";
 import { enginePlatformSupport } from "../core/platform-support.js";
 import type { RunStore } from "../core/run-store.js";
 import { CliError } from "../utils/errors.js";
@@ -68,6 +68,7 @@ export async function spawnCommand(args: string[], store: RunStore): Promise<num
           mode: values.mode ?? "",
           controls,
           onComplete: values["on-complete"] ?? process.env.SIDEKICK_ON_COMPLETE ?? "",
+          ...codexHomeFields(engine.name),
         },
         prompt,
       );
