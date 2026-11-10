@@ -14,7 +14,10 @@ export type ControlAxis =
   | "workspaceTrust"
   | "agentProfile"
   | "budget"
-  | "cwdRestore";
+  | "cwdRestore"
+  | "maxTurns"
+  | "addDirs"
+  | "toolsAll";
 export type Transport =
   "cli-subprocess" | "chat-completions" | "responses" | "stdin" | "prompt-file" | "unknown";
 export type ObservationStatus = "requested" | "applied" | "clamped" | "unknown" | "unsupported";
@@ -65,6 +68,11 @@ export interface HarnessControls {
   agentProfile: ControlObservation<string>;
   budget: ControlObservation<string>;
   cwdRestore: ControlObservation<boolean>;
+  /** Added for Command Code; absent in snapshots persisted before this axis existed. */
+  maxTurns?: ControlObservation<string>;
+  /** Multi-valued inputs are recorded as one request plus the applied --add-dir argv. */
+  addDirs?: ControlObservation<boolean>;
+  toolsAll?: ControlObservation<boolean>;
 }
 
 export interface CapabilityRecord {
@@ -95,11 +103,16 @@ export interface ResolveControlsInput {
   agentProfile?: string;
   budget?: string;
   cwdRestore?: boolean;
+  maxTurns?: string;
+  /** Workspace-scoped inputs are validated by axis; the exact directories live in RunMeta. */
+  addDirs?: string[];
+  toolsAll?: boolean;
   action: ControlAction;
   toolVersion?: string;
 }
 
-export const CONTROL_AXES: readonly ControlAxis[] = [
+/** Axes every snapshot must carry; older runs on disk were persisted with exactly these. */
+export const LEGACY_CONTROL_AXES: readonly ControlAxis[] = [
   "model",
   "provider",
   "transport",
@@ -111,9 +124,16 @@ export const CONTROL_AXES: readonly ControlAxis[] = [
   "budget",
   "cwdRestore",
 ];
+export const CONTROL_AXES: readonly ControlAxis[] = [
+  ...LEGACY_CONTROL_AXES,
+  "maxTurns",
+  "addDirs",
+  "toolsAll",
+];
 
 const DEVIN_VERSION = "devin 3000.11.205";
 const CODEX_VERSION = "codex-cli 0.164.0";
+const COMMANDCODE_VERSION = "commandcode 1.88.5";
 const CLAUDE_VERSION = "2.1.221 (Claude Code)";
 const SIMULATED_VERSION = "simulated";
 const DEFAULT_PROVIDER = "native";
@@ -129,6 +149,16 @@ const CLAUDE_EFFORT_ALL_MODELS = [
 const CLAUDE_EFFORT_LIMITED_MODELS = ["claude-opus-4-6", "claude-sonnet-4-6"] as const;
 /** Codex CLI accepts these via -c model_reasoning_effort=... for any --model. */
 const CODEX_EFFORT_VALUES = ["minimal", "low", "medium", "high", "xhigh", "max"] as const;
+/** Command Code recognizes exactly these reasoning-effort tokens; each model exposes a subset. */
+const COMMANDCODE_EFFORT_VALUES = ["off", "low", "medium", "high", "xhigh", "max"] as const;
+/** Documented --permission-mode values; yolo is emitted as the native --yolo alias. */
+const COMMANDCODE_PERMISSION_VALUES = [
+  "default",
+  "plan",
+  "accept-edits",
+  "yolo",
+  "dont-ask",
+] as const;
 
 function claudeEffortRecords(action: ControlAction): CapabilityRecord[] {
   const all = CLAUDE_EFFORT_ALL_MODELS.map((model) =>
@@ -199,6 +229,92 @@ function adapterSurfaceRecords(
       "CLI subprocess is the evidenced transport.",
       undefined,
       [DEFAULT_TRANSPORT],
+    ),
+  ]);
+}
+
+function commandCodeControlRecords(): CapabilityRecord[] {
+  const actions: readonly ControlAction[] = ["initial", "resume", "adopt", "fallback"];
+  return actions.flatMap((action) => [
+    record(
+      "commandcode",
+      DEFAULT_PROVIDER,
+      "*",
+      DEFAULT_TRANSPORT,
+      COMMANDCODE_VERSION,
+      "model",
+      action,
+      "native",
+      false,
+      "Command Code --model is explicit; models come from commandcode --list-models.",
+    ),
+    record(
+      "commandcode",
+      DEFAULT_PROVIDER,
+      "*",
+      DEFAULT_TRANSPORT,
+      COMMANDCODE_VERSION,
+      "effort",
+      action,
+      "native",
+      false,
+      "Command Code --effort is value-gated to the CLI's reasoning-effort tokens; each model exposes a subset (DeepSeek V4.1 Flash: off|low|high|max), so the provider may reject or ignore a level the model lacks.",
+      undefined,
+      [...COMMANDCODE_EFFORT_VALUES],
+    ),
+    record(
+      "commandcode",
+      DEFAULT_PROVIDER,
+      "*",
+      DEFAULT_TRANSPORT,
+      COMMANDCODE_VERSION,
+      "permission",
+      action,
+      "native",
+      false,
+      "yolo maps to the native --yolo alias; every other value maps to --permission-mode.",
+      undefined,
+      [...COMMANDCODE_PERMISSION_VALUES],
+    ),
+    record(
+      "commandcode",
+      DEFAULT_PROVIDER,
+      "*",
+      DEFAULT_TRANSPORT,
+      COMMANDCODE_VERSION,
+      "maxTurns",
+      action,
+      "native",
+      false,
+      "Sidekick applies the turn cap as native --max-turns; the CLI exits 8 when it is reached.",
+    ),
+    record(
+      "commandcode",
+      DEFAULT_PROVIDER,
+      "*",
+      DEFAULT_TRANSPORT,
+      COMMANDCODE_VERSION,
+      "addDirs",
+      action,
+      "native",
+      false,
+      "Each directory is applied as a repeated native --add-dir.",
+      undefined,
+      ["true"],
+    ),
+    record(
+      "commandcode",
+      DEFAULT_PROVIDER,
+      "*",
+      DEFAULT_TRANSPORT,
+      COMMANDCODE_VERSION,
+      "toolsAll",
+      action,
+      "native",
+      false,
+      "True applies the native --tools-all headless tool scope and is persisted for resumes.",
+      undefined,
+      ["true", "false"],
     ),
   ]);
 }
@@ -932,6 +1048,8 @@ export const capabilityRegistry: readonly CapabilityRecord[] = [
     undefined,
     ["low", "medium", "high", "xhigh", "max"],
   ),
+  ...commandCodeControlRecords(),
+  ...adapterSurfaceRecords("commandcode", COMMANDCODE_VERSION),
 ];
 
 export function evidencedToolVersion(
@@ -972,13 +1090,21 @@ function normalizeToolVersion(engine: EngineName, output: string): string {
   if (engine === "codex") return firstLine.match(/^codex-cli\s+\S+/iu)?.[0] ?? "unverified";
   if (engine === "hermes") return firstLine.match(/^Hermes Agent\s+v\S+/u)?.[0] ?? "unverified";
   if (engine === "claude") return firstLine.match(/^\S+\s+\([^)]*\)/u)?.[0] ?? "unverified";
+  if (engine === "commandcode") {
+    // `commandcode --version` prints a bare semver; normalize it to the registry's key shape.
+    const version = firstLine.match(/^\d+\.\d+\.\d+$/u)?.[0];
+    return version ? `commandcode ${version}` : "unverified";
+  }
   return firstLine;
 }
 
 export function isHarnessControls(value: unknown): value is HarnessControls {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const controls = value as Record<string, unknown>;
-  return CONTROL_AXES.every((axis) => isObservation(controls[axis]));
+  return (
+    LEGACY_CONTROL_AXES.every((axis) => isObservation(controls[axis])) &&
+    CONTROL_AXES.every((axis) => controls[axis] === undefined || isObservation(controls[axis]))
+  );
 }
 
 export function capabilityKey(entry: CapabilityRecord): string {
@@ -1018,29 +1144,13 @@ export function createControls(input: ResolveControlsInput): HarnessControls {
     effort: effortObservation(input.engine, effort, input, action),
     permission: permissionObservation(input.engine, permission, action, workerAction),
     sandbox: sandboxObservation(input.engine, sandbox, action),
-    workspaceTrust: booleanObservation(
-      input.workspaceTrust,
-      input.workspaceTrust === undefined
-        ? null
-        : action === "adopt"
-          ? applied(
-              "none",
-              input.workspaceTrust,
-              "adapter",
-              undefined,
-              String(input.workspaceTrust),
-            )
-          : applied(
-              "cli-flag",
-              input.workspaceTrust,
-              "native-argv",
-              "--respect-workspace-trust",
-              String(input.workspaceTrust),
-            ),
-    ),
+    workspaceTrust: workspaceTrustObservation(input.workspaceTrust, action),
     agentProfile: observation(input.agentProfile ?? null, null),
     budget: observation(input.budget ?? null, null),
     cwdRestore: booleanObservation(input.cwdRestore, null),
+    maxTurns: maxTurnsObservation(input.engine, input.maxTurns, action),
+    addDirs: addDirsObservation(input.engine, input.addDirs, action),
+    toolsAll: toolsAllObservation(input.engine, input.toolsAll, action),
   };
 }
 
@@ -1049,6 +1159,7 @@ export function reprojectControls(
   controls: HarnessControls,
   engine: EngineName,
   action: ControlAction,
+  addDirs?: string[],
 ): HarnessControls {
   const input: ResolveControlsInput = {
     engine,
@@ -1067,6 +1178,10 @@ export function reprojectControls(
   if (controls.budget.requested) input.budget = controls.budget.requested;
   if (controls.cwdRestore.requested !== null && controls.cwdRestore.requested !== undefined)
     input.cwdRestore = controls.cwdRestore.requested;
+  if (controls.maxTurns?.requested) input.maxTurns = controls.maxTurns.requested;
+  if (controls.addDirs?.requested === true && addDirs?.length) input.addDirs = addDirs;
+  if (controls.toolsAll?.requested !== null && controls.toolsAll?.requested !== undefined)
+    input.toolsAll = controls.toolsAll.requested;
   return createControls(input);
 }
 
@@ -1078,6 +1193,7 @@ export function createLegacyControls(input: ResolveControlsInput): HarnessContro
   const stamped = Object.fromEntries(
     CONTROL_AXES.map((axis) => {
       const current = controls[axis];
+      if (!current) return [axis, observation(null, null)];
       if (current.requested === null && !current.applied) return [axis, current];
       if (!current.applied) {
         return [
@@ -1105,7 +1221,7 @@ export function createLegacyControls(input: ResolveControlsInput): HarnessContro
 }
 
 export function hasLegacyControls(controls: HarnessControls): boolean {
-  return CONTROL_AXES.some((axis) => controls[axis].applied?.source === "legacy");
+  return CONTROL_AXES.some((axis) => controls[axis]?.applied?.source === "legacy");
 }
 
 export function resolveControls(input: ResolveControlsInput): HarnessControls {
@@ -1122,7 +1238,10 @@ function normalizeInput(input: ResolveControlsInput): ResolveControlsInput {
   const mode = input.mode?.trim() ?? "";
   const permission = input.permission?.trim() || undefined;
   const effort = input.effort?.trim() || undefined;
+  const maxTurns = input.maxTurns?.trim() || undefined;
   const sandbox = normalizeSandbox(input.sandbox ?? sandboxFromLegacy(input.engine, mode));
+  if (maxTurns !== undefined && !/^[1-9]\d*$/u.test(maxTurns))
+    throw new CliError("--max-turns must be a positive integer", 2);
   if (mode === "high" && input.engine === "devin")
     throw new CliError(
       "--mode high is not a Devin reasoning control; use --effort with a verified model",
@@ -1131,14 +1250,24 @@ function normalizeInput(input: ResolveControlsInput): ResolveControlsInput {
 
   if (input.engine === "devin" && (permission === undefined || permission === "")) {
     if (mode === "auto")
-      return compact({ ...input, mode: "normal", permission: "normal", effort, sandbox });
-    if (mode) return compact({ ...input, permission: mode, effort, sandbox });
+      return compact({
+        ...input,
+        mode: "normal",
+        permission: "normal",
+        effort,
+        maxTurns,
+        sandbox,
+      });
+    if (mode) return compact({ ...input, permission: mode, effort, maxTurns, sandbox });
   }
-  if (input.engine === "codex" && mode) return compact({ ...input, effort, sandbox });
-  if (input.engine === "claude" && mode) return compact({ ...input, effort, permission: mode });
+  if (input.engine === "codex" && mode) return compact({ ...input, effort, maxTurns, sandbox });
+  if (input.engine === "claude" && mode)
+    return compact({ ...input, effort, maxTurns, permission: mode });
+  if (input.engine === "commandcode" && mode)
+    return compact({ ...input, effort, maxTurns, permission: mode });
   if (input.engine === "hermes" && mode)
     throw new CliError("Hermes does not have a verified per-run --mode control", 2);
-  return compact({ ...input, mode, permission, effort, sandbox });
+  return compact({ ...input, mode, permission, effort, maxTurns, sandbox });
 }
 
 function validateExplicit(input: ResolveControlsInput): void {
@@ -1159,6 +1288,9 @@ function validateExplicit(input: ResolveControlsInput): void {
     ["permission", input.permission],
     ["sandbox", input.sandbox],
     ["workspaceTrust", input.workspaceTrust],
+    ["maxTurns", input.maxTurns],
+    ["addDirs", input.addDirs?.length ? true : undefined],
+    ["toolsAll", input.toolsAll],
   ];
   for (const [axis, value] of explicit) {
     if (value === undefined || value === "") continue;
@@ -1187,7 +1319,7 @@ function validateExplicit(input: ResolveControlsInput): void {
   }
 }
 
-const PATCH_TOLERANT_ENGINES: readonly EngineName[] = ["codex", "devin"];
+const PATCH_TOLERANT_ENGINES: readonly EngineName[] = ["codex", "devin", "commandcode"];
 
 function releaseParts(version: string): number[] {
   const token = version.trim().split(/\s+/u)[1] ?? "";
@@ -1195,9 +1327,10 @@ function releaseParts(version: string): number[] {
 }
 
 /**
- * Codex and Devin self-update patch releases (Devin moved 3000.11.92 -> 3000.11.205 within
- * minutes), so their evidence covers the same release line (all numeric parts but the last).
- * Pre-releases, other engines, and any other difference stay exact-match fail-closed.
+ * Codex, Devin, and Command Code self-update patch releases (Devin moved 3000.11.92 ->
+ * 3000.11.205 within minutes), so their evidence covers the same release line (all numeric
+ * parts but the last). Pre-releases, other engines, and any other difference stay
+ * exact-match fail-closed.
  */
 export function evidenceVersionMatches(
   engine: EngineName,
@@ -1303,6 +1436,8 @@ function effortObservation(
     );
   if (engine === "claude")
     return observation(effort, applied("cli-flag", effort, "native-argv", "--effort", effort));
+  if (engine === "commandcode")
+    return observation(effort, applied("cli-flag", effort, "native-argv", "--effort", effort));
   if (engine === "mock")
     return observation(effort, applied("none", effort, "adapter", undefined, effort));
   return observation(
@@ -1343,6 +1478,10 @@ function permissionObservation(
       value,
       applied("config-override", value, "native-config", "approval_policy", value),
     );
+  if (engine === "commandcode")
+    return value === "yolo"
+      ? observation(value, applied("cli-flag", "yolo", "native-argv", "--yolo", "true"))
+      : observation(value, applied("cli-flag", value, "native-argv", "--permission-mode", value));
   const native = engine === "claude" && value === "accept-edits" ? "acceptEdits" : value;
   return observation(
     value,
@@ -1369,6 +1508,67 @@ function sandboxObservation(
       applied("config-override", value, "native-config", "sandbox_mode", String(value)),
     );
   return observation(value, applied("cli-flag", value, "native-argv", "--sandbox", String(value)));
+}
+
+function workspaceTrustObservation(
+  requested: boolean | undefined,
+  action: ControlAction,
+): ControlObservation<boolean> {
+  if (requested === undefined) return observation<boolean>(null, null);
+  if (action === "adopt")
+    return observation(
+      requested,
+      applied("none", requested, "adapter", undefined, String(requested)),
+    );
+  return observation(
+    requested,
+    applied("cli-flag", requested, "native-argv", "--respect-workspace-trust", String(requested)),
+  );
+}
+
+function maxTurnsObservation(
+  engine: EngineName,
+  value: string | undefined,
+  action: ControlAction,
+): ControlObservation<string> {
+  if (!value) return observation<string>(null, null);
+  if (engine !== "commandcode")
+    return observation(value, applied("omitted", null, "adapter", undefined, "omitted"));
+  if (action === "adopt")
+    return observation(value, applied("none", value, "adapter", undefined, value));
+  return observation(value, applied("cli-flag", value, "native-argv", "--max-turns", value));
+}
+
+function addDirsObservation(
+  engine: EngineName,
+  directories: string[] | undefined,
+  action: ControlAction,
+): ControlObservation<boolean> {
+  if (!directories?.length) return observation<boolean>(null, null);
+  const count = `${directories.length} directories`;
+  if (engine !== "commandcode")
+    return observation<boolean>(true, applied("omitted", null, "adapter", undefined, "omitted"));
+  if (action === "adopt")
+    return observation(true, applied("none", true, "adapter", undefined, count));
+  return observation(true, applied("cli-flag", true, "native-argv", "--add-dir", count));
+}
+
+function toolsAllObservation(
+  engine: EngineName,
+  requested: boolean | undefined,
+  action: ControlAction,
+): ControlObservation<boolean> {
+  if (requested === undefined) return observation<boolean>(null, null);
+  if (engine !== "commandcode")
+    return observation(requested, applied("omitted", null, "adapter", undefined, "omitted"));
+  if (action === "adopt")
+    return observation(
+      requested,
+      applied("none", requested, "adapter", undefined, String(requested)),
+    );
+  if (!requested)
+    return observation(requested, applied("omitted", null, "adapter", undefined, "omitted"));
+  return observation(requested, applied("cli-flag", true, "native-argv", "--tools-all", "true"));
 }
 
 function observation<T>(

@@ -12,7 +12,14 @@ import {
 import { parseOptions } from "./shared.js";
 import { CliError } from "../utils/errors.js";
 
-const ENGINES: readonly EngineName[] = ["codex", "devin", "claude", "hermes", "mock"];
+const ENGINES: readonly EngineName[] = [
+  "codex",
+  "devin",
+  "claude",
+  "hermes",
+  "commandcode",
+  "mock",
+];
 
 export function capabilitiesCommand(args: string[]): number {
   const { values, positionals } = parseOptions(args, {

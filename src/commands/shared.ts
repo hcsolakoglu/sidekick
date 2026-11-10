@@ -24,6 +24,24 @@ export async function directory(value: string | undefined): Promise<string> {
   throw new CliError(`not a directory: ${path}`);
 }
 
+/** Resolves repeated --add-dir values against the run directory; every one must exist. */
+export async function extraDirectories(base: string, values: string[]): Promise<string[]> {
+  const paths: string[] = [];
+  for (const value of values) {
+    const path = resolve(base, value);
+    try {
+      if ((await stat(path)).isDirectory()) {
+        paths.push(path);
+        continue;
+      }
+    } catch {
+      /* handled below */
+    }
+    throw new CliError(`--add-dir is not a directory: ${path}`);
+  }
+  return paths;
+}
+
 export async function promptFrom(positionals: string[]): Promise<string> {
   if (positionals.length) return positionals.join(" ");
   if (!process.stdin.isTTY && process.env.CI !== "true") {
@@ -65,7 +83,14 @@ export function parseTransportOption(value: string | undefined): Transport | und
 
 export function parseEngineFilter(value: string | undefined): EngineName | undefined {
   if (value === undefined) return undefined;
-  const engines: readonly EngineName[] = ["codex", "devin", "claude", "hermes", "mock"];
+  const engines: readonly EngineName[] = [
+    "codex",
+    "devin",
+    "claude",
+    "hermes",
+    "commandcode",
+    "mock",
+  ];
   if (!engines.includes(value as EngineName)) throw new CliError(`unknown engine: ${value}`);
   return value as EngineName;
 }

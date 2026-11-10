@@ -10,7 +10,7 @@ import {
   type HarnessControls,
 } from "./controls.js";
 import { commandOverride } from "./engines/shared.js";
-import type { WorkerAction } from "./engines/types.js";
+import type { EngineName, WorkerAction } from "./engines/types.js";
 import { launchWorker, processIdentityMatches, runProcess, stopProcess } from "./process.js";
 import { RunStore, type RunRecord } from "./run-store.js";
 import { engineStatePath } from "./platform-support.js";
@@ -164,7 +164,7 @@ export async function executeWorker(
   // Creation-time meta.controls.applied stays immutable; worker argv uses action-reprojected applied.
   const workerControls =
     !needsControlResolution && controlAction !== "initial"
-      ? reprojectControls(controls, record.meta.engine, controlAction)
+      ? reprojectControls(controls, record.meta.engine, controlAction, record.meta.addDirs)
       : controls;
   // Resumes must run under the account home chosen at spawn, not the caller's shell.
   const workerEnv = record.meta.codexHome
@@ -181,6 +181,7 @@ export async function executeWorker(
     controls: workerControls,
     delayMs: Number(process.env.SIDEKICK_MOCK_DELAY_MS ?? 20),
     env: workerEnv,
+    ...(record.meta.addDirs?.length ? { addDirs: record.meta.addDirs } : {}),
   };
   const invocation = engine.build(context);
   const maximum = maxLogBytes();
@@ -211,6 +212,7 @@ export async function executeWorker(
     });
     await stream;
     const parsed = engine.parse(result.stdout, context);
+    const exitCode = parsed.exitCode ?? result.code;
     if (!parsed.session && action !== "resume") {
       const after = await discoverSessions(record.meta.engine, record.meta.directory);
       parsed.session = newestSession(before, after);
@@ -219,9 +221,9 @@ export async function executeWorker(
       ? `${parsed.output.trimEnd()}\n\n[stderr]\n${result.stderr.trimEnd()}\n`
       : parsed.output;
     await store.withLock(name, () =>
-      store.complete(name, turn, result.code, parsed.session, capText(output, maximum)),
+      store.complete(name, turn, exitCode, parsed.session, capText(output, maximum)),
     );
-    return result.code;
+    return exitCode;
   };
   try {
     if (action !== "resume" && ["devin", "hermes"].includes(record.meta.engine)) {
@@ -371,7 +373,7 @@ function newestSession(before: Map<string, string>, after: Map<string, string>):
 }
 
 export async function validateAdoptedSession(
-  engine: string,
+  engine: EngineName,
   session: string,
   directory: string,
 ): Promise<boolean | null> {
@@ -380,10 +382,9 @@ export async function validateAdoptedSession(
     const sessions = await discoverSessions(engine, directory);
     return sessions.size ? sessions.has(session) : null;
   }
-  const root = join(
-    engineStatePath(engine === "codex" ? "codex" : "claude"),
-    engine === "codex" ? "sessions" : "projects",
-  );
+  // Codex, Claude Code, and Command Code all persist one transcript per session
+  // under their state home; only the directory name and file shape differ.
+  const root = join(engineStatePath(engine), engine === "codex" ? "sessions" : "projects");
   try {
     const pending = [root];
     while (pending.length) {
