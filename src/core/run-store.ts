@@ -211,7 +211,18 @@ export class RunStore {
             }
           }
         } catch {
-          /* lock owner may still be writing its marker */
+          // The owner may still be writing its marker. Reclaim only after the
+          // usual grace period; a crash between mkdir and the marker write
+          // would otherwise leave a lock that never gets released.
+          try {
+            const info = await stat(lockPath);
+            if (info.isDirectory() && Date.now() - info.mtimeMs > 30_000) {
+              await rm(lockPath, { recursive: true, force: true });
+              continue;
+            }
+          } catch {
+            /* the lock disappeared; retry the acquisition */
+          }
         }
         if (Date.now() >= deadline) throw new CliError(`timed out acquiring lock for ${name}`, 1);
         await new Promise((resolve) => setTimeout(resolve, 25));
