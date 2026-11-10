@@ -20,8 +20,10 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Install latest Codex without lifecycle scripts
-        run: npm install --global --ignore-scripts @openai/codex@latest
+      - name: Install latest Codex and Command Code without lifecycle scripts
+        run: |
+          npm install --global --ignore-scripts @openai/codex@latest
+          npm install --global --ignore-scripts command-code@latest
       - name: Compare versions and probe adapter flags
         env:
           GITHUB_TOKEN: ${{ github.token }}
