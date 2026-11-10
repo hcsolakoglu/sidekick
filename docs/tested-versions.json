@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "checkedAt": "2026-10-23",
+  "checkedAt": "2026-11-10",
   "harnesses": {
     "codex-cli": {
-      "testedVersion": "0.164.0",
+      "testedVersion": "0.167.0",
       "adapter": "src/core/engines/codex.ts",
       "latestStableSource": {
         "kind": "npm",
@@ -13,7 +13,7 @@
       }
     },
     "devin": {
-      "testedVersion": "3000.11.205",
+      "testedVersion": "3000.12.32",
       "adapter": "src/core/engines/devin.ts",
       "latestStableSource": {
         "kind": "vendor-manifest",
@@ -23,7 +23,7 @@
       }
     },
     "claude": {
-      "testedVersion": "2.1.221",
+      "testedVersion": "2.1.321",
       "adapter": "src/core/engines/claude.ts",
       "latestStableSource": {
         "kind": "github-release",
@@ -33,7 +33,7 @@
       }
     },
     "hermes": {
-      "testedVersion": "0.19.0",
+      "testedVersion": "0.22.5",
       "adapter": "src/core/engines/hermes.ts",
       "latestStableSource": {
         "kind": "github-release",

@@ -9,11 +9,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 - Command Code engine (`commandcode`) with headless `--print`/`--output-format json` NDJSON parsing, session resume, adoption, and status/tail/wait/result/cancel parity.
+- Hermes per-run effort through the native `--reasoning` flag, value-gated to `none|minimal|low|medium|high|xhigh|max|ultra`.
 - Command Code control evidence: value-gated `--effort`, permission modes with `--yolo`, `--max-turns`, `--add-dir`, and `--tools-all`, plus `sidekick skill install commandcode`.
 - `permission_denied` and `max_turns` result mapping for Command Code; a policy denial is recorded as run exit code `126` with the denied tool and shell command instead of a false success.
 - Versioned harness control evidence, immutable `RunMeta.controls`, fail-closed native preflight, and `capabilities --json` reporting.
 - Separate `--effort`, `--permission`, `--sandbox`, `--workspace-trust`, `--provider`, and `--transport` inputs for spawn/adopt; `send` remains control-immutable.
 - Bounded `status` history with active-run visibility, `--all`, `--limit`, `--running`, recency ordering, and truncation metadata.
+- `status`, `clean`, and `wait --all` accept `--engine` and canonical `--dir` filters; JSON output reports the applied filters and status totals.
 - Summary-only state scans that avoid loading full `out.log` files for status, retention, concurrency, and unnamed wait discovery.
 - Safe `clean --dry-run` planning with explicit `wouldRemove` output and diagnostics for legacy or unreadable state directories.
 - Explicit legacy run-state migration with dry-run-by-default planning, atomic metadata conversion, non-destructive quarantine, and collision-safe restore.
@@ -28,7 +30,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - Command Code evidence covers `commandcode 1.88.5` and patch releases of that release line, matching the self-update policy for Codex and Devin.
 - `spawn` and `adopt` accept `--max-turns`, repeatable `--add-dir`, and `--tools-all`; engines without those native surfaces fail closed with exit code 2.
-- Refreshed control evidence to `codex-cli 0.164.0` and `devin 3000.11.205`; both self-update, so Codex and Devin evidence now covers patch releases of the same release line (pre-releases, other engines, and any other version stay exact-match fail-closed).
+- Refreshed control evidence to `codex-cli 0.167.0`, `devin 3000.12.32`, `claude 2.1.321`, and `hermes 0.22.5`; Command Code stays at `commandcode 1.88.5`. The refresh used `--version`, `--help`, invalid-value parser probes, and installed-package inspection only; no live model prompt was sent.
+- Devin `smart` is now advertised and emitted as `--permission-mode smart` because the 3000.12.x parser accepted-value error lists it; older evidence versions still fail closed.
 - Codex runs record the spawn-time `CODEX_HOME`, so `send` resumes reuse the same account home even from another shell; engines that exit without reading stdin (for example on an auth failure) record their exit code and stderr instead of crashing the worker with EPIPE.
 - `sidekick tail` prints finished runs and exits when a followed run completes instead of waiting forever.
 - Codex resume turns pass `--skip-git-repo-check` like initial turns, so resuming in a non-git directory no longer fails.
@@ -36,7 +39,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Refreshed Codex control evidence to `codex-cli 0.147.0` after verifying the local initial and resume CLI surfaces; explicit effort and sandbox controls no longer fail closed solely because the evidence table is stale.
 - Legacy `--mode` is validated as a compatibility projection; requested/applied/effective control observations preserve native argv/config provenance and runtime tool-version evidence.
 - Codex `--effort` is value-gated for any model (`minimal|low|medium|high|xhigh|max`) without a curated model allowlist; `max` is accepted and forwarded via `-c model_reasoning_effort`.
-- Hermes per-run `--effort` remains unverified/fail-closed: oneshot has no public native effort flag, and Sidekick does not rewrite global Hermes config to simulate one.
+- Hermes per-run effort uses the native `--reasoning` flag; Sidekick never rewrites global Hermes `agent.reasoning_effort` config.
 - Spawn/adopt controls are preflighted before prompt/cwd/discovery/store side effects; Codex resume uses config overrides rather than unsupported resume flags.
 - Status and retention scans now report skipped legacy or unreadable run directories instead of silently hiding them; only readable terminal records are eligible for cleanup.
 - Worker completion and dead-worker repair now serialize terminal state publication through per-run locks.

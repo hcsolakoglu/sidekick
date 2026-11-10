@@ -7,6 +7,8 @@ export const hermesEngine: Engine = {
     const args = ["--pass-session-id"];
     const model = controlString(context.controls, "model", context.model);
     if (model) args.push("--model", model);
+    const effort = controlString(context.controls, "effort", "");
+    if (effort) args.push("--reasoning", effort);
     if (context.action === "resume" && context.session) args.push("--resume", context.session);
     args.push("--oneshot", context.prompt);
     return invocation(commandOverride("hermes", "hermes", context.env), args);

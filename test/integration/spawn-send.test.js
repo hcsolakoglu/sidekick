@@ -42,7 +42,7 @@ test("invalid control preflight leaves a fresh home untouched", async () => {
   const sandbox = await temporary();
   const home = join(sandbox, "home");
   const result = await runCli(
-    ["spawn", "devin", "invalid-control", "--mode", "smart", "--dir", sandbox, "--", "probe"],
+    ["spawn", "devin", "invalid-control", "--effort", "high", "--dir", sandbox, "--", "probe"],
     { env: { SIDEKICK_HOME: home } },
   );
   assert.equal(result.code, 2);
