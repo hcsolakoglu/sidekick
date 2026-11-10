@@ -20,6 +20,7 @@ export const codexEngine: Engine = {
             "--json",
             "-o",
             context.outputFile,
+            "--skip-git-repo-check",
             ...(model ? ["--model", model] : []),
             ...(sandbox ? ["-c", `sandbox_mode=${sandbox}`] : []),
             ...permissionOverride,

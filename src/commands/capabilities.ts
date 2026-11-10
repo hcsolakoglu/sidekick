@@ -5,6 +5,7 @@ import {
   capabilityRegistry,
   createControls,
   evidencedToolVersion,
+  evidenceVersionMatches,
   type CapabilityRecord,
   type CapabilitySupport,
 } from "../core/controls.js";
@@ -88,7 +89,7 @@ function toOutput(entry: CapabilityRecord, model: string, runtimeVersion: string
     action: entry.action,
     toolVersion: entry.toolVersion,
   });
-  const versionMatches = entry.toolVersion === runtimeVersion;
+  const versionMatches = evidenceVersionMatches(entry.engine, entry.toolVersion, runtimeVersion);
   const support: CapabilitySupport = versionMatches ? entry.support : "unverified";
   const detail = versionMatches
     ? entry.detail

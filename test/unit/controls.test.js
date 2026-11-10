@@ -5,6 +5,7 @@ import {
   capabilityRegistry,
   createControls,
   createLegacyControls,
+  evidenceVersionMatches,
   hasLegacyControls,
   isHarnessControls,
   resolveControls,
@@ -36,7 +37,7 @@ test("resolveControls maps Codex legacy workspace mode to a native applied obser
     transport: "cli-subprocess",
     mode: "workspace-write",
     action: "initial",
-    toolVersion: "codex-cli 0.147.0",
+    toolVersion: "codex-cli 0.164.0",
   });
   assert.equal(controls.sandbox.requested, "workspace-write");
   assert.equal(controls.sandbox.applied?.mechanism, "cli-flag");
@@ -49,7 +50,7 @@ test("resolveControls maps Codex legacy workspace mode to a native applied obser
     model: "gpt-5.3-codex",
     permission: "never",
     action: "initial",
-    toolVersion: "codex-cli 0.147.0",
+    toolVersion: "codex-cli 0.164.0",
   });
   assert.equal(permission.permission.applied?.configPath, "approval_policy");
 });
@@ -64,7 +65,7 @@ test("resolveControls rejects Devin smart until version-specific evidence promot
         transport: "cli-subprocess",
         mode: "smart",
         action: "initial",
-        toolVersion: "devin 3000.3.27",
+        toolVersion: "devin 3000.11.205",
       }),
     (error) => error?.exitCode === 2 && /unsupported|unverified|smart/iu.test(error.message),
   );
@@ -79,7 +80,7 @@ test("legacy Codex mode never emits an unsupported sandbox label", () => {
         model: "gpt-5.3-codex",
         mode: "high",
         action: "initial",
-        toolVersion: "codex-cli 0.147.0",
+        toolVersion: "codex-cli 0.164.0",
       }),
     (error) => error?.exitCode === 2 && /not accepted|unsupported/iu.test(error.message),
   );
@@ -94,7 +95,7 @@ test("capability value sets reject unsupported explicit values", () => {
         model: "gpt-5.3-codex",
         permission: "not-a-codex-policy",
         action: "initial",
-        toolVersion: "codex-cli 0.147.0",
+        toolVersion: "codex-cli 0.164.0",
       }),
     (error) => error?.exitCode === 2 && /not accepted|unsupported/iu.test(error.message),
   );
@@ -158,7 +159,7 @@ test("createControls is action-aware for Codex sandbox and adopt provenance", ()
     model: "gpt-5.3-codex",
     sandbox: "workspace-write",
     action: "initial",
-    toolVersion: "codex-cli 0.147.0",
+    toolVersion: "codex-cli 0.164.0",
   });
   assert.equal(initial.sandbox.applied?.mechanism, "cli-flag");
   assert.equal(initial.sandbox.applied?.key, "--sandbox");
@@ -168,7 +169,7 @@ test("createControls is action-aware for Codex sandbox and adopt provenance", ()
     model: "gpt-5.3-codex",
     sandbox: "workspace-write",
     action: "resume",
-    toolVersion: "codex-cli 0.147.0",
+    toolVersion: "codex-cli 0.164.0",
   });
   assert.equal(resume.sandbox.applied?.mechanism, "config-override");
   assert.equal(resume.sandbox.applied?.configPath, "sandbox_mode");
@@ -178,7 +179,7 @@ test("createControls is action-aware for Codex sandbox and adopt provenance", ()
     model: "glm-5-2",
     permission: "normal",
     action: "adopt",
-    toolVersion: "devin 3000.3.27",
+    toolVersion: "devin 3000.11.205",
   });
   assert.equal(adopted.permission.applied?.mechanism, "none");
   assert.equal(adopted.permission.applied?.source, "adapter");
@@ -189,7 +190,7 @@ test("Devin worker defaults are recorded as adapter-applied when omitted", () =>
   const controls = resolveControls({
     engine: "devin",
     action: "initial",
-    toolVersion: "devin 3000.3.27",
+    toolVersion: "devin 3000.11.205",
   });
   assert.equal(controls.model.requested, null);
   assert.equal(controls.model.applied?.value, "glm-5.2");
@@ -206,7 +207,7 @@ test("Devin permission and sandbox use the required cross-product oracle", () =>
     permission: "autonomous",
     sandbox: true,
     action: "initial",
-    toolVersion: "devin 3000.3.27",
+    toolVersion: "devin 3000.11.205",
   });
   assert.equal(autonomous.permission.applied?.value, "autonomous");
   assert.equal(autonomous.sandbox.applied?.value, true);
@@ -220,7 +221,7 @@ test("Devin permission and sandbox use the required cross-product oracle", () =>
         permission: "normal",
         sandbox: true,
         action: "initial",
-        toolVersion: "devin 3000.3.27",
+        toolVersion: "devin 3000.11.205",
       }),
     (error) => error?.exitCode === 2 && /requires permission=autonomous/iu.test(error.message),
   );
@@ -233,7 +234,7 @@ test("adopt has an explicit capability action and malformed controls fail closed
     model: "glm-5-2",
     mode: "normal",
     action: "adopt",
-    toolVersion: "devin 3000.3.27",
+    toolVersion: "devin 3000.11.205",
   });
   assert.equal(adopted.permission.applied?.value, "auto");
   assert.equal(isHarnessControls(adopted), true);
@@ -250,7 +251,7 @@ test("Codex effort is value-gated for any model, not a curated model allowlist",
     model: "gpt-5.6",
     effort: "medium",
     action: "initial",
-    toolVersion: "codex-cli 0.147.0",
+    toolVersion: "codex-cli 0.164.0",
   });
   assert.equal(gpt56.effort.requested, "medium");
   assert.equal(gpt56.effort.applied?.configPath, "model_reasoning_effort");
@@ -261,7 +262,7 @@ test("Codex effort is value-gated for any model, not a curated model allowlist",
     model: "gpt-5.6-codex",
     effort: "high",
     action: "initial",
-    toolVersion: "codex-cli 0.147.0",
+    toolVersion: "codex-cli 0.164.0",
   });
   assert.equal(sol.effort.applied?.value, "high");
 
@@ -271,7 +272,7 @@ test("Codex effort is value-gated for any model, not a curated model allowlist",
     model: "gpt-5.6",
     effort: "max",
     action: "initial",
-    toolVersion: "codex-cli 0.147.0",
+    toolVersion: "codex-cli 0.164.0",
   });
   assert.equal(maxEffort.effort.applied?.value, "max");
   assert.equal(maxEffort.effort.applied?.configPath, "model_reasoning_effort");
@@ -283,7 +284,7 @@ test("Codex effort is value-gated for any model, not a curated model allowlist",
         engine: "codex",
         effort: "ultra",
         model: "gpt-5.6",
-        toolVersion: "codex-cli 0.147.0",
+        toolVersion: "codex-cli 0.164.0",
       }),
     (error) => error?.exitCode === 2 && /not accepted|unsupported/iu.test(error.message),
   );
@@ -304,7 +305,7 @@ test("controls JSON round-trip preserves provenance fields", () => {
     transport: "cli-subprocess",
     mode: "normal",
     action: "initial",
-    toolVersion: "devin 3000.3.27",
+    toolVersion: "devin 3000.11.205",
   });
   const parsed = JSON.parse(serializeControls(controls));
   assert.equal(parsed.permission.requested, "normal");
@@ -313,4 +314,56 @@ test("controls JSON round-trip preserves provenance fields", () => {
   assert.equal(parsed.permission.applied.configPath, undefined);
   assert.equal(parsed.permission.applied.observedValueRedacted, "auto");
   assert.equal(parsed.permission.effective, null);
+});
+
+test("evidence covers patch releases of Codex and Devin but nothing else", () => {
+  assert.equal(evidenceVersionMatches("devin", "devin 3000.11.92", "devin 3000.11.205"), true);
+  assert.equal(evidenceVersionMatches("devin", "devin 3000.11.92", "devin 3000.12.1"), false);
+  assert.equal(evidenceVersionMatches("codex", "codex-cli 0.164.0", "codex-cli 0.164.4"), true);
+  assert.equal(evidenceVersionMatches("codex", "codex-cli 0.164.0", "codex-cli 0.165.0"), false);
+  // Pre-releases, unknown versions, and two-part versions fail closed.
+  assert.equal(
+    evidenceVersionMatches("codex", "codex-cli 0.164.0", "codex-cli 0.164.1-alpha.1"),
+    false,
+  );
+  assert.equal(evidenceVersionMatches("codex", "codex-cli 0.164.0", "unverified"), false);
+  assert.equal(evidenceVersionMatches("devin", "devin 3000.11", "devin 3000.12"), false);
+  // Claude and Hermes keep exact matching.
+  assert.equal(
+    evidenceVersionMatches("claude", "2.1.221 (Claude Code)", "2.1.222 (Claude Code)"),
+    false,
+  );
+  assert.equal(
+    evidenceVersionMatches("claude", "2.1.221 (Claude Code)", "2.1.221 (Claude Code)"),
+    true,
+  );
+});
+
+test("a patch-newer Devin or Codex runtime keeps explicit controls verified", () => {
+  const devin = resolveControls({
+    ...base,
+    engine: "devin",
+    model: "swe-2-high",
+    toolVersion: "devin 3000.11.250",
+    workspaceTrust: false,
+  });
+  assert.equal(devin.workspaceTrust.applied.value, false);
+  const codex = resolveControls({
+    ...base,
+    engine: "codex",
+    toolVersion: "codex-cli 0.164.7",
+    effort: "high",
+    sandbox: "workspace-write",
+  });
+  assert.equal(codex.effort.applied.value, "high");
+  assert.throws(
+    () =>
+      resolveControls({
+        ...base,
+        engine: "codex",
+        toolVersion: "codex-cli 0.165.0",
+        effort: "high",
+      }),
+    /unverified/u,
+  );
 });

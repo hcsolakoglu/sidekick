@@ -1,7 +1,11 @@
 import { join } from "node:path";
 import { getEngine } from "../core/engines/index.js";
 import { evidencedToolVersion, resolveControls } from "../core/controls.js";
-import { validateAdoptedSession, withDirectoryDiscoveryLock } from "../core/run-service.js";
+import {
+  codexHomeFields,
+  validateAdoptedSession,
+  withDirectoryDiscoveryLock,
+} from "../core/run-service.js";
 import { enginePlatformSupport } from "../core/platform-support.js";
 import type { RunStore } from "../core/run-store.js";
 import { CliError } from "../utils/errors.js";
@@ -70,6 +74,7 @@ export async function adoptCommand(args: string[], store: RunStore): Promise<num
         model: values.model ?? "",
         mode: values.mode ?? "",
         controls,
+        ...codexHomeFields(engine.name),
       },
       prompt,
       session,
